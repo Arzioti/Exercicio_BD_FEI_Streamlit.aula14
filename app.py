@@ -7,20 +7,64 @@ import numpy as np
 import cv2
 
 # --- Configuração da Página ---
-st.set_page_config(page_title="Reconhecimento Facial (Lógica de Aula)", layout="wide")
+st.set_page_config(page_title="Reconhecimento Facial", layout="wide", initial_sidebar_state="collapsed")
 
-# --- CSS FORÇADO PARA MÁSCARA (MANTIDO) ---
+# --- CSS FORÇADO PARA TELA CHEIA MOBILE ---
 st.markdown("""
 <style>
-    div[data-testid="stCameraInput"] { text-align: center; margin: 0 auto; }
-    div[data-testid="stCameraInput"] video { border-radius: 12px; }
-    div[data-testid="stCameraInput"]::after {
-        content: ""; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        width: 280px; height: 350px;
-        border: 5px dashed rgba(255, 255, 255, 0.9); border-radius: 40%;
-        box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.7); pointer-events: none; z-index: 10;
+    /* Remove margens extras do Streamlit no topo para ganhar espaço */
+    .block-container {
+        padding-top: 1rem;
+        padding-bottom: 0rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
     }
-    div[data-testid="stCameraInput"] button { z-index: 20; position: relative; border-radius: 30px; }
+
+    /* FORÇA O VÍDEO A OCUPAR 100% DA LARGURA DISPONÍVEL */
+    div[data-testid="stCameraInput"] {
+        width: 100% !important;
+    }
+
+    div[data-testid="stCameraInput"] video {
+        width: 100% !important;
+        height: auto !important; /* Mantém a proporção correta */
+        object-fit: cover;
+        border-radius: 12px;
+    }
+
+    /* MÁSCARA TOTALMENTE RESPONSIVA (Sem tamanho fixo) */
+    div[data-testid="stCameraInput"]::after {
+        content: ""; 
+        position: absolute; 
+        top: 50%; 
+        left: 50%; 
+        transform: translate(-50%, -50%);
+        
+        /* A máscara ocupará 85% da largura DO VÍDEO, seja ele qual for */
+        width: 85%;
+        /* A altura se ajusta automaticamente para manter o formato de rosto */
+        aspect-ratio: 0.8; 
+        
+        /* Formato Squircle (Quadrado arredondado) */
+        border: 4px dashed rgba(255, 255, 255, 0.8); 
+        border-radius: 45%; 
+        
+        /* Sombra escura ao redor */
+        box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.7); 
+        
+        pointer-events: none; 
+        z-index: 10;
+    }
+    
+    /* Botão de tirar foto */
+    div[data-testid="stCameraInput"] button { 
+        z-index: 20; 
+        position: relative; 
+        border-radius: 50%;
+        width: 60px;
+        height: 60px;
+        border: 3px solid white;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -34,7 +78,7 @@ def init_connection():
         client.admin.command('ping')
         return client
     except Exception as e:
-        st.error(f"Erro de conexão com o banco: {e}")
+        st.error(f"Erro de conexão: {e}")
         return None
 
 client = init_connection()
@@ -59,26 +103,18 @@ def processar_imagem_aula(image, target_size=(200, 250)):
     return img_array, img_resized
 
 def calcular_diferenca_aula(img_usuario_array, img_banco_array):
-    # Soma das Diferenças Absolutas (SAD)
     diferenca_abs = np.abs(img_banco_array - img_usuario_array)
     score_diferenca = np.sum(diferenca_abs)
     return score_diferenca
 
 def calcular_similaridade_percentual(diferenca_score):
-    """
-    Converte o score bruto de diferença (SAD) em uma porcentagem estimada.
-    CALIBRAÇÃO ATUALIZADA:
-    O máximo teórico de diferença para 200x250 pixels é: 
-    50.000 pixels * 255 (diferença máx por pixel) = 12.750.000.
+    # AJUSTE DE SENSIBILIDADE
+    # Reduzi de 12.000.000 para 8.000.000. 
+    # Isso torna o sistema mais "rigoroso", baixando a nota das fotos diferentes
+    # e aumentando a distância entre o que é parecido e o que não é.
+    max_diferenca_aceitavel = 8000000.0 
     
-    Ajustamos o divisor para 12.000.000 para ser um pouco mais tolerante.
-    """
-    max_diferenca_aceitavel = 12000000.0 
-    
-    # Inverte a lógica: Score 0 de diferença = 100% similaridade
     porcentagem = (1 - (diferenca_score / max_diferenca_aceitavel)) * 100
-    
-    # Garante que fique entre 0 e 100
     return max(0.0, min(100.0, porcentagem))
 
 def encontrar_matches(foto_usuario_pil):
@@ -114,7 +150,6 @@ def encontrar_matches(foto_usuario_pil):
         if i % 5 == 0: progresso.progress((i + 1) / total)
     
     progresso.empty()
-    # Ordena pela porcentagem maior (Descendente)
     resultados_ordenados = sorted(resultados, key=lambda x: x['porcentagem'], reverse=True)
     return resultados_ordenados, img_usuario_processada
 
@@ -130,18 +165,16 @@ def salvar_no_banco(nome, imagem_pil):
 
 # --- Interface ---
 
-st.title("Comparador Facial (Algoritmo da Aula)")
+# Layout de Coluna única no topo para a câmera (Melhor para mobile)
+col_cam = st.container()
 
-col1, col2 = st.columns([1, 2])
-
-with col1:
-    st.subheader("Captura")
+with col_cam:
     foto = st.camera_input("Tire a foto", label_visibility="collapsed")
     
     if foto:
         img_original = Image.open(foto)
         
-        # Recorte Central Simples (Mantém a lógica manual)
+        # Recorte Central Simples
         w, h = img_original.size
         target_ratio = 200/250
         current_ratio = w/h
@@ -152,56 +185,53 @@ with col1:
         else:
             img_crop = img_original
             
-        with st.spinner("Calculando similaridade..."):
+        with st.spinner("Analisando biometria..."):
             matches, img_proc = encontrar_matches(img_crop)
             st.session_state['resultados'] = matches
             st.session_state['foto_atual'] = img_proc
 
-    if st.session_state['foto_atual']:
-        st.image(st.session_state['foto_atual'], caption="Sua foto processada", width=150)
-        with st.form("save"):
-            nome = st.text_input("Nome do Usuário:")
-            if st.form_submit_button("Salvar Imagem"):
-                if nome: salvar_no_banco(nome, st.session_state['foto_atual'])
-                else: st.warning("Digite um nome.")
-
-with col2:
-    st.subheader("Resultados")
+# Resultados abaixo da câmera
+if st.session_state['foto_atual']:
+    st.divider()
     
-    res = st.session_state['resultados']
-    if res:
-        qtde = st.slider("Quantidade de imagens:", 1, 10, 3)
-        ordem = st.radio("Mostrar:", ["Mais Parecidas (Maior %)", "Menos Parecidas (Menor %)"], horizontal=True)
-        
-        lista_final = res[:qtde] if "Mais" in ordem else res[-qtde:][::-1]
-        
-        cols = st.columns(qtde)
-        for i, item in enumerate(lista_final):
-            with cols[i]:
-                # Exibe Imagem
-                st.image(item['imagem'], use_container_width=True)
-                st.markdown(f"**{item['filename']}**")
-                
-                # Exibe Porcentagem Grande e Colorida (Azul/Verde/Vermelho)
-                pct = item['porcentagem']
-                
-                if pct > 80:
-                    cor = "#0066cc" # Azul forte
-                elif pct > 60:
-                    cor = "green"   # Verde
-                else:
-                    cor = "red"     # Vermelho
-                
-                st.markdown(f"""
-                <h3 style='text-align: center; color: {cor}; margin:0;'>
-                    {pct:.1f}%
-                </h3>
-                """, unsafe_allow_html=True)
-                
-                # Exibe Diferença Bruta (Pequeno)
-                st.caption(f"Dif. Bruta: {item['diferenca']:,.0f}")
-                
-                # Barra de Progresso Visual
-                st.progress(int(pct))
-    else:
-        st.info("Aguardando foto...")
+    # Abas para separar Cadastro de Busca
+    tab1, tab2 = st.tabs(["📊 Resultados", "💾 Salvar Nova"])
+    
+    with tab1:
+        res = st.session_state['resultados']
+        if res:
+            # Controles simplificados
+            c1, c2 = st.columns([2, 1])
+            with c1: ordem = st.selectbox("Ordenar por:", ["Mais Parecidas", "Menos Parecidas"])
+            with c2: qtde = st.selectbox("Qtd:", [3, 6, 9], index=0)
+            
+            lista_final = res[:qtde] if "Mais" in ordem else res[-qtde:][::-1]
+            
+            cols = st.columns(3) # Sempre 3 por linha, quebra automático no mobile
+            for i, item in enumerate(lista_final):
+                with cols[i % 3]:
+                    st.image(item['imagem'], use_container_width=True)
+                    
+                    pct = item['porcentagem']
+                    
+                    # NOVA REGRA DE CORES
+                    if pct >= 60: 
+                        cor = "green"
+                    else: 
+                        cor = "red"
+                    
+                    st.markdown(f"<h4 style='text-align:center; color:{cor}; margin:0;'>{pct:.0f}%</h4>", unsafe_allow_html=True)
+                    st.caption(f"{item['filename']}")
+        else:
+            st.info("Nenhum resultado.")
+
+    with tab2:
+        col_img, col_form = st.columns([1, 2])
+        with col_img:
+            st.image(st.session_state['foto_atual'], caption="Sua Foto", use_container_width=True)
+        with col_form:
+            with st.form("save"):
+                nome = st.text_input("Nome:")
+                if st.form_submit_button("Salvar no Banco", use_container_width=True):
+                    if nome: salvar_no_banco(nome, st.session_state['foto_atual'])
+                    else: st.warning("Digite um nome.")
