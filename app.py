@@ -9,7 +9,7 @@ import cv2
 # --- Configuração da Página ---
 st.set_page_config(page_title="Reconhecimento Facial", layout="wide", initial_sidebar_state="collapsed")
 
-# --- CSS FORÇADO PARA TELA CHEIA MOBILE ---
+# --- CSS FORÇADO PARA TELA CHEIA MOBILE E FORMATO RETRATO ---
 st.markdown("""
 <style>
     /* Remove margens extras do Streamlit no topo para ganhar espaço */
@@ -20,19 +20,24 @@ st.markdown("""
         padding-right: 1rem;
     }
 
-    /* FORÇA O VÍDEO A OCUPAR 100% DA LARGURA DISPONÍVEL */
+    /* CONTAINER DA CÂMERA: Limita a largura para parecer um celular mesmo no PC */
     div[data-testid="stCameraInput"] {
         width: 100% !important;
+        max-width: 400px !important; /* Tamanho ideal de um celular grande */
+        margin: 0 auto !important; /* Centraliza na tela */
     }
 
+    /* O VÍDEO EM SI: Força ser alto (Retrato) */
     div[data-testid="stCameraInput"] video {
         width: 100% !important;
-        height: auto !important; /* Mantém a proporção correta */
-        object-fit: cover;
+        /* AQUI ESTÁ O SEGREDO: Força a proporção 0.8 (200 largura / 250 altura) */
+        aspect-ratio: 0.8 !important; 
+        /* Garante que o vídeo cubra toda a área sem distorcer (zoom/crop automático) */
+        object-fit: cover !important; 
         border-radius: 12px;
     }
 
-    /* MÁSCARA TOTALMENTE RESPONSIVA (Sem tamanho fixo) */
+    /* MÁSCARA TOTALMENTE RESPONSIVA */
     div[data-testid="stCameraInput"]::after {
         content: ""; 
         position: absolute; 
@@ -40,9 +45,9 @@ st.markdown("""
         left: 50%; 
         transform: translate(-50%, -50%);
         
-        /* A máscara ocupará 85% da largura DO VÍDEO, seja ele qual for */
-        width: 85%;
-        /* A altura se ajusta automaticamente para manter o formato de rosto */
+        /* A máscara ocupará 90% da largura do vídeo */
+        width: 90%;
+        /* Mantém a mesma proporção do vídeo (0.8) */
         aspect-ratio: 0.8; 
         
         /* Formato Squircle (Quadrado arredondado) */
@@ -64,6 +69,7 @@ st.markdown("""
         width: 60px;
         height: 60px;
         border: 3px solid white;
+        background-color: rgba(255, 75, 75, 0.8); /* Destaque leve no botão */
     }
 </style>
 """, unsafe_allow_html=True)
