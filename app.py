@@ -9,45 +9,36 @@ import cv2
 # --- Configuração da Página ---
 st.set_page_config(page_title="Reconhecimento Facial", layout="wide", initial_sidebar_state="collapsed")
 
-# --- CSS FORÇADO PARA TELA CHEIA MOBILE E FORMATO RETRATO ---
+# --- CSS SUPREMO PARA TELA CHEIA MOBILE ---
 st.markdown("""
 <style>
-    /* Remove margens extras do Streamlit para aproveitar 100% da tela mobile */
+    /* 1. REMOVE TODAS AS MARGENS DO STREAMLIT NO MOBILE */
     .block-container {
-        padding-top: 1rem;
-        padding-bottom: 0rem;
-        padding-left: 0.5rem;
-        padding-right: 0.5rem;
+        padding: 0 !important;
+        margin: 0 !important;
         max-width: 100% !important;
     }
+    
+    header {visibility: hidden;} /* Esconde o menu do topo */
+    footer {visibility: hidden;} /* Esconde o rodapé */
 
-    /* CONTAINER DA CÂMERA: 
-       No Mobile: 100% de largura.
-       No PC: Limita a 500px para não ficar gigante.
-    */
+    /* 2. FORÇA O CONTAINER DA CÂMERA A OCUPAR A TELA */
     div[data-testid="stCameraInput"] {
         width: 100% !important;
-        margin: 0 auto !important;
-    }
-    
-    @media (min-width: 800px) {
-        div[data-testid="stCameraInput"] {
-            width: 500px !important;
-        }
+        margin: 0 !important;
+        background-color: black; /* Fundo preto para parecer app nativo */
     }
 
-    /* O VÍDEO EM SI: 
-       Força a proporção 0.8 (4:5) que é o formato do banco (200x250).
-       Isso garante que o que você vê na tela é o que será salvo.
-    */
+    /* 3. VÍDEO GIGANTE E CENTRALIZADO */
     div[data-testid="stCameraInput"] video {
         width: 100% !important;
-        aspect-ratio: 0.8 !important; 
-        object-fit: cover !important; 
-        border-radius: 12px;
+        height: auto !important;
+        aspect-ratio: 0.8 !important; /* Mantém proporção retrato */
+        object-fit: cover !important;
+        border-radius: 0 !important; /* Sem bordas arredondadas no vídeo full */
     }
 
-    /* MÁSCARA RESPONSIVA */
+    /* 4. MÁSCARA SOBREPOSTA (SQUIRCLE) */
     div[data-testid="stCameraInput"]::after {
         content: ""; 
         position: absolute; 
@@ -55,40 +46,63 @@ st.markdown("""
         left: 50%; 
         transform: translate(-50%, -50%);
         
-        /* Ocupa quase todo o vídeo (95%) */
-        width: 95%;
+        /* Ocupa 85% da largura da tela */
+        width: 85%;
         aspect-ratio: 0.8; 
         
-        /* Formato Squircle */
-        border: 4px dashed rgba(255, 255, 255, 0.7); 
+        border: 4px dashed rgba(255, 255, 255, 0.6); 
         border-radius: 45%; 
         
-        /* Sombra escura ao redor */
-        box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.6); 
+        /* Sombra externa */
+        box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.5); 
         
         pointer-events: none; 
         z-index: 10;
     }
     
-    /* Botão de tirar foto */
+    /* 5. BOTÃO DE FOTO ESTILIZADO E FLUTUANTE */
     div[data-testid="stCameraInput"] button { 
         z-index: 20; 
-        position: relative; 
+        position: absolute; /* Flutua sobre o vídeo */
+        bottom: 20px;       /* Fica na parte de baixo */
+        left: 50%;
+        transform: translateX(-50%);
+        
         border-radius: 50%;
-        width: 70px; /* Botão maior */
-        height: 70px;
-        border: 3px solid white;
-        background-color: rgba(255, 75, 75, 0.9);
-        color: transparent; /* Esconde o texto "Take Photo" para ficar só o botão vermelho */
+        width: 80px; 
+        height: 80px;
+        border: 4px solid white;
+        background-color: rgba(255, 50, 50, 0.8);
+        color: transparent;
     }
+    
+    /* Ícone de câmera no botão */
     div[data-testid="stCameraInput"] button::after {
         content: "📸";
-        font-size: 30px;
+        font-size: 35px;
         position: absolute;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
         color: white;
+    }
+    
+    /* Ajuste para telas grandes (PC) não ficarem estranhas */
+    @media (min-width: 800px) {
+        .block-container { padding: 2rem !important; }
+        div[data-testid="stCameraInput"] { 
+            width: 400px !important; 
+            margin: 0 auto !important;
+            border-radius: 20px;
+            overflow: hidden;
+        }
+        div[data-testid="stCameraInput"] button {
+            position: relative;
+            bottom: auto;
+            transform: none;
+            left: auto;
+            margin: 10px auto;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -133,9 +147,7 @@ def calcular_diferenca_aula(img_usuario_array, img_banco_array):
     return score_diferenca
 
 def calcular_similaridade_percentual(diferenca_score):
-    # AJUSTE DE SENSIBILIDADE (8 Milhões para separar bem parecidos de não-parecidos)
     max_diferenca_aceitavel = 8000000.0 
-    
     porcentagem = (1 - (diferenca_score / max_diferenca_aceitavel)) * 100
     return max(0.0, min(100.0, porcentagem))
 
@@ -190,74 +202,70 @@ def salvar_no_banco(nome, imagem_pil):
 col_cam = st.container()
 
 with col_cam:
+    # Câmera no topo (CSS cuida do tamanho)
     foto = st.camera_input("Tire a foto", label_visibility="collapsed")
     
     if foto:
         img_original = Image.open(foto)
         
-        # --- RECORTE INTELIGENTE (CROP) ---
-        # Garante que a foto fique na proporção 200:250 sem distorcer,
-        # cortando o excesso das laterais OU do topo/fundo.
+        # Crop Inteligente
         w, h = img_original.size
         target_ratio = 200/250
         current_ratio = w/h
         
         if current_ratio > target_ratio:
-            # Imagem mais Larga que o alvo -> Corta laterais
             new_w = h * target_ratio
             left = (w - new_w)/2
             img_crop = img_original.crop((left, 0, left + new_w, h))
         else:
-            # Imagem mais Alta que o alvo -> Corta topo e baixo
             new_h = w / target_ratio
             top = (h - new_h)/2
             img_crop = img_original.crop((0, top, w, top + new_h))
             
-        with st.spinner("Analisando biometria..."):
+        with st.spinner("Analisando..."):
             matches, img_proc = encontrar_matches(img_crop)
             st.session_state['resultados'] = matches
             st.session_state['foto_atual'] = img_proc
 
-# Resultados
+# Resultados (Abaixo da dobra)
 if st.session_state['foto_atual']:
-    st.divider()
-    
-    tab1, tab2 = st.tabs(["📊 Resultados", "💾 Salvar Nova"])
-    
-    with tab1:
-        res = st.session_state['resultados']
-        if res:
-            c1, c2 = st.columns([2, 1])
-            with c1: ordem = st.selectbox("Ordenar por:", ["Mais Parecidas", "Menos Parecidas"])
-            with c2: qtde = st.selectbox("Qtd:", [3, 6, 9], index=0)
-            
-            lista_final = res[:qtde] if "Mais" in ordem else res[-qtde:][::-1]
-            
-            cols = st.columns(3) 
-            for i, item in enumerate(lista_final):
-                with cols[i % 3]:
-                    st.image(item['imagem'], use_container_width=True)
-                    
-                    pct = item['porcentagem']
-                    
-                    # REGRA DE CORES
-                    if pct >= 60: 
-                        cor = "green"
-                    else: 
-                        cor = "red"
-                    
-                    st.markdown(f"<h4 style='text-align:center; color:{cor}; margin:0;'>{pct:.0f}%</h4>", unsafe_allow_html=True)
-                    st.caption(f"{item['filename']}")
-        else:
-            st.info("Nenhum resultado.")
+    # Adicionamos padding aqui para não colar nas bordas, já que removemos do global
+    with st.container():
+        st.markdown("<div style='padding: 20px;'>", unsafe_allow_html=True)
+        
+        tab1, tab2 = st.tabs(["📊 Resultados", "💾 Salvar Nova"])
+        
+        with tab1:
+            res = st.session_state['resultados']
+            if res:
+                c1, c2 = st.columns([2, 1])
+                with c1: ordem = st.selectbox("Ordenar:", ["Mais Parecidas", "Menos Parecidas"])
+                with c2: qtde = st.selectbox("Qtd:", [3, 6, 9], index=0)
+                
+                lista_final = res[:qtde] if "Mais" in ordem else res[-qtde:][::-1]
+                
+                cols = st.columns(3) 
+                for i, item in enumerate(lista_final):
+                    with cols[i % 3]:
+                        st.image(item['imagem'], use_container_width=True)
+                        pct = item['porcentagem']
+                        
+                        if pct >= 60: cor = "green"
+                        else: cor = "red"
+                        
+                        st.markdown(f"<h4 style='text-align:center; color:{cor}; margin:0;'>{pct:.0f}%</h4>", unsafe_allow_html=True)
+            else:
+                st.info("Sem resultados.")
 
-    with tab2:
-        col_img, col_form = st.columns([1, 2])
-        with col_img:
-            st.image(st.session_state['foto_atual'], caption="Sua Foto", use_container_width=True)
-        with col_form:
-            with st.form("save"):
-                nome = st.text_input("Nome:")
-                if st.form_submit_button("Salvar no Banco", use_container_width=True):
-                    if nome: salvar_no_banco(nome, st.session_state['foto_atual'])
-                    else: st.warning("Digite um nome.")
+        with tab2:
+            col_img, col_form = st.columns([1, 2])
+            with col_img:
+                st.image(st.session_state['foto_atual'], caption="Sua Foto", use_container_width=True)
+            with col_form:
+                with st.form("save"):
+                    nome = st.text_input("Nome:")
+                    if st.form_submit_button("Salvar no Banco", use_container_width=True):
+                        if nome: salvar_no_banco(nome, st.session_state['foto_atual'])
+                        else: st.warning("Digite um nome.")
+        
+        st.markdown("</div>", unsafe_allow_html=True)
