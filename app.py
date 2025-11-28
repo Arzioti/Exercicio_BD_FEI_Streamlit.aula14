@@ -9,101 +9,88 @@ import cv2
 # --- Configuração da Página ---
 st.set_page_config(page_title="Reconhecimento Facial", layout="wide", initial_sidebar_state="collapsed")
 
-# --- CSS SUPREMO PARA TELA CHEIA MOBILE ---
+# --- CSS LIMPO E FUNCIONAL PARA MOBILE ---
 st.markdown("""
 <style>
-    /* 1. REMOVE TODAS AS MARGENS DO STREAMLIT NO MOBILE */
+    /* 1. CONFIGURAÇÃO GERAL DA PÁGINA MOBILE */
     .block-container {
         padding: 0 !important;
         margin: 0 !important;
         max-width: 100% !important;
     }
     
-    header {visibility: hidden;} /* Esconde o menu do topo */
-    footer {visibility: hidden;} /* Esconde o rodapé */
+    header, footer { visibility: hidden; }
 
-    /* 2. FORÇA O CONTAINER DA CÂMERA A OCUPAR A TELA */
+    /* 2. CONTAINER DA CÂMERA */
     div[data-testid="stCameraInput"] {
         width: 100% !important;
-        margin: 0 !important;
-        background-color: black; /* Fundo preto para parecer app nativo */
+        background-color: black;
+        position: relative;
     }
 
-    /* 3. VÍDEO GIGANTE E CENTRALIZADO */
     div[data-testid="stCameraInput"] video {
         width: 100% !important;
         height: auto !important;
-        aspect-ratio: 0.8 !important; /* Mantém proporção retrato */
+        aspect-ratio: 0.8 !important; 
         object-fit: cover !important;
-        border-radius: 0 !important; /* Sem bordas arredondadas no vídeo full */
+        border-radius: 0 !important;
     }
 
-    /* 4. MÁSCARA SOBREPOSTA (SQUIRCLE) */
+    /* 3. MÁSCARA (SQUIRCLE) - AJUSTADA PARA NÃO COBRIR O TOPO (ONDE FICA O BOTÃO DE INVERTER) */
     div[data-testid="stCameraInput"]::after {
         content: ""; 
         position: absolute; 
-        top: 50%; 
+        top: 55%; /* Empurra um pouco para baixo para liberar o topo */
         left: 50%; 
         transform: translate(-50%, -50%);
         
-        /* Ocupa 85% da largura da tela */
-        width: 85%;
+        width: 80%;
         aspect-ratio: 0.8; 
         
-        border: 4px dashed rgba(255, 255, 255, 0.6); 
+        border: 3px dashed rgba(255, 255, 255, 0.5); 
         border-radius: 45%; 
         
         /* Sombra externa */
-        box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.5); 
+        box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.6); 
         
         pointer-events: none; 
         z-index: 10;
     }
-    
-    /* 5. BOTÃO DE FOTO ESTILIZADO E FLUTUANTE */
+
+    /* 4. BOTÃO DE CAPTURA - CÍRCULO VERMELHO COM BORDA BRANCA */
     div[data-testid="stCameraInput"] button { 
         z-index: 20; 
-        position: absolute; /* Flutua sobre o vídeo */
-        bottom: 20px;       /* Fica na parte de baixo */
+        position: absolute; 
+        bottom: 30px; 
         left: 50%;
         transform: translateX(-50%);
         
+        width: 70px; 
+        height: 70px;
         border-radius: 50%;
-        width: 80px; 
-        height: 80px;
-        border: 4px solid white;
-        background-color: rgba(255, 50, 50, 0.8);
-        color: transparent;
+        
+        /* Estilo do Botão */
+        background-color: #ff4444; /* Vermelho */
+        border: 4px solid white;   /* Borda Branca */
+        color: transparent;        /* Esconde o texto "Take Photo" */
+        
+        /* Remove estilos padrão do Streamlit que atrapalham */
+        padding: 0 !important;
+        line-height: 0 !important;
+        min-height: 0 !important;
     }
     
-    /* Ícone de câmera no botão */
+    /* Remove o ícone de câmera antigo para ficar só a bola vermelha limpa */
     div[data-testid="stCameraInput"] button::after {
-        content: "📸";
-        font-size: 35px;
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        color: white;
+        content: "";
     }
     
-    /* Ajuste para telas grandes (PC) não ficarem estranhas */
-    @media (min-width: 800px) {
-        .block-container { padding: 2rem !important; }
-        div[data-testid="stCameraInput"] { 
-            width: 400px !important; 
-            margin: 0 auto !important;
-            border-radius: 20px;
-            overflow: hidden;
-        }
-        div[data-testid="stCameraInput"] button {
-            position: relative;
-            bottom: auto;
-            transform: none;
-            left: auto;
-            margin: 10px auto;
-        }
+    /* Efeito de clique */
+    div[data-testid="stCameraInput"] button:active {
+        transform: translateX(-50%) scale(0.9);
+        background-color: #cc0000;
     }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -202,7 +189,6 @@ def salvar_no_banco(nome, imagem_pil):
 col_cam = st.container()
 
 with col_cam:
-    # Câmera no topo (CSS cuida do tamanho)
     foto = st.camera_input("Tire a foto", label_visibility="collapsed")
     
     if foto:
@@ -227,9 +213,8 @@ with col_cam:
             st.session_state['resultados'] = matches
             st.session_state['foto_atual'] = img_proc
 
-# Resultados (Abaixo da dobra)
+# Resultados
 if st.session_state['foto_atual']:
-    # Adicionamos padding aqui para não colar nas bordas, já que removemos do global
     with st.container():
         st.markdown("<div style='padding: 20px;'>", unsafe_allow_html=True)
         
