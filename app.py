@@ -24,8 +24,7 @@ st.markdown("""
     /* 2. CONTAINER DA CÂMERA */
     div[data-testid="stCameraInput"] {
         width: 100% !important;
-        background-color: black;
-        position: relative;
+        background-color: black; /* Fundo preto */
     }
 
     div[data-testid="stCameraInput"] video {
@@ -36,22 +35,20 @@ st.markdown("""
         border-radius: 0 !important;
     }
 
-    /* 3. MÁSCARA (SQUIRCLE) - AJUSTADA PARA NÃO COBRIR O TOPO (ONDE FICA O BOTÃO DE INVERTER) */
+    /* 3. MÁSCARA (SQUIRCLE) - SEM SOMBRA GIGANTE PARA NÃO ESCONDER O BOTÃO DE INVERTER */
     div[data-testid="stCameraInput"]::after {
         content: ""; 
         position: absolute; 
-        top: 55%; /* Empurra um pouco para baixo para liberar o topo */
+        top: 50%; /* Centralizado no vídeo */
         left: 50%; 
         transform: translate(-50%, -50%);
         
         width: 80%;
         aspect-ratio: 0.8; 
         
-        border: 3px dashed rgba(255, 255, 255, 0.5); 
+        /* Apenas a borda guia, sem cobrir o resto da tela */
+        border: 4px dashed rgba(255, 255, 255, 0.6); 
         border-radius: 45%; 
-        
-        /* Sombra externa */
-        box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.6); 
         
         pointer-events: none; 
         z-index: 10;
@@ -59,36 +56,37 @@ st.markdown("""
 
     /* 4. BOTÃO DE CAPTURA - CÍRCULO VERMELHO COM BORDA BRANCA */
     div[data-testid="stCameraInput"] button { 
+        /* Posicionamento Nativo ou Ajustado */
+        border-radius: 50% !important;
+        width: 70px !important; 
+        height: 70px !important;
+        
+        /* Estilo Visual Pedido */
+        background-color: #ff4444 !important; /* Vermelho */
+        border: 4px solid white !important;   /* Borda Branca */
+        color: transparent !important;        /* Esconde texto */
+        
+        /* Centralizar e Flutuar */
         z-index: 20; 
         position: absolute; 
-        bottom: 30px; 
+        bottom: 20px; 
         left: 50%;
         transform: translateX(-50%);
         
-        width: 70px; 
-        height: 70px;
-        border-radius: 50%;
-        
-        /* Estilo do Botão */
-        background-color: #ff4444; /* Vermelho */
-        border: 4px solid white;   /* Borda Branca */
-        color: transparent;        /* Esconde o texto "Take Photo" */
-        
-        /* Remove estilos padrão do Streamlit que atrapalham */
+        /* Reset de estilos do Streamlit */
         padding: 0 !important;
+        margin: 0 !important;
         line-height: 0 !important;
-        min-height: 0 !important;
     }
     
-    /* Remove o ícone de câmera antigo para ficar só a bola vermelha limpa */
-    div[data-testid="stCameraInput"] button::after {
-        content: "";
-    }
+    /* Remove ícones/textos internos do botão para ficar limpo */
+    div[data-testid="stCameraInput"] button::after { content: ""; }
+    div[data-testid="stCameraInput"] button > * { display: none; }
     
-    /* Efeito de clique */
+    /* Feedback de clique */
     div[data-testid="stCameraInput"] button:active {
         transform: translateX(-50%) scale(0.9);
-        background-color: #cc0000;
+        background-color: #cc0000 !important;
     }
 
 </style>
