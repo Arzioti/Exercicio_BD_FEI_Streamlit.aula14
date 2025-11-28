@@ -1,3 +1,5 @@
 streamlit
 pymongo[srv]
 Pillow
+numpy
+opencv-python-headless
