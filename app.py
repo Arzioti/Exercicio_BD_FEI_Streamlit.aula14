@@ -12,32 +12,42 @@ st.set_page_config(page_title="Reconhecimento Facial", layout="wide", initial_si
 # --- CSS FORÇADO PARA TELA CHEIA MOBILE E FORMATO RETRATO ---
 st.markdown("""
 <style>
-    /* Remove margens extras do Streamlit no topo para ganhar espaço */
+    /* Remove margens extras do Streamlit para aproveitar 100% da tela mobile */
     .block-container {
         padding-top: 1rem;
         padding-bottom: 0rem;
-        padding-left: 1rem;
-        padding-right: 1rem;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+        max-width: 100% !important;
     }
 
-    /* CONTAINER DA CÂMERA: Limita a largura para parecer um celular mesmo no PC */
+    /* CONTAINER DA CÂMERA: 
+       No Mobile: 100% de largura.
+       No PC: Limita a 500px para não ficar gigante.
+    */
     div[data-testid="stCameraInput"] {
         width: 100% !important;
-        max-width: 400px !important; /* Tamanho ideal de um celular grande */
-        margin: 0 auto !important; /* Centraliza na tela */
+        margin: 0 auto !important;
+    }
+    
+    @media (min-width: 800px) {
+        div[data-testid="stCameraInput"] {
+            width: 500px !important;
+        }
     }
 
-    /* O VÍDEO EM SI: Força ser alto (Retrato) */
+    /* O VÍDEO EM SI: 
+       Força a proporção 0.8 (4:5) que é o formato do banco (200x250).
+       Isso garante que o que você vê na tela é o que será salvo.
+    */
     div[data-testid="stCameraInput"] video {
         width: 100% !important;
-        /* AQUI ESTÁ O SEGREDO: Força a proporção 0.8 (200 largura / 250 altura) */
         aspect-ratio: 0.8 !important; 
-        /* Garante que o vídeo cubra toda a área sem distorcer (zoom/crop automático) */
         object-fit: cover !important; 
         border-radius: 12px;
     }
 
-    /* MÁSCARA TOTALMENTE RESPONSIVA */
+    /* MÁSCARA RESPONSIVA */
     div[data-testid="stCameraInput"]::after {
         content: ""; 
         position: absolute; 
@@ -45,17 +55,16 @@ st.markdown("""
         left: 50%; 
         transform: translate(-50%, -50%);
         
-        /* A máscara ocupará 90% da largura do vídeo */
-        width: 90%;
-        /* Mantém a mesma proporção do vídeo (0.8) */
+        /* Ocupa quase todo o vídeo (95%) */
+        width: 95%;
         aspect-ratio: 0.8; 
         
-        /* Formato Squircle (Quadrado arredondado) */
-        border: 4px dashed rgba(255, 255, 255, 0.8); 
+        /* Formato Squircle */
+        border: 4px dashed rgba(255, 255, 255, 0.7); 
         border-radius: 45%; 
         
         /* Sombra escura ao redor */
-        box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.7); 
+        box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.6); 
         
         pointer-events: none; 
         z-index: 10;
@@ -66,10 +75,20 @@ st.markdown("""
         z-index: 20; 
         position: relative; 
         border-radius: 50%;
-        width: 60px;
-        height: 60px;
+        width: 70px; /* Botão maior */
+        height: 70px;
         border: 3px solid white;
-        background-color: rgba(255, 75, 75, 0.8); /* Destaque leve no botão */
+        background-color: rgba(255, 75, 75, 0.9);
+        color: transparent; /* Esconde o texto "Take Photo" para ficar só o botão vermelho */
+    }
+    div[data-testid="stCameraInput"] button::after {
+        content: "📸";
+        font-size: 30px;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: white;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -114,10 +133,7 @@ def calcular_diferenca_aula(img_usuario_array, img_banco_array):
     return score_diferenca
 
 def calcular_similaridade_percentual(diferenca_score):
-    # AJUSTE DE SENSIBILIDADE
-    # Reduzi de 12.000.000 para 8.000.000. 
-    # Isso torna o sistema mais "rigoroso", baixando a nota das fotos diferentes
-    # e aumentando a distância entre o que é parecido e o que não é.
+    # AJUSTE DE SENSIBILIDADE (8 Milhões para separar bem parecidos de não-parecidos)
     max_diferenca_aceitavel = 8000000.0 
     
     porcentagem = (1 - (diferenca_score / max_diferenca_aceitavel)) * 100
@@ -171,7 +187,6 @@ def salvar_no_banco(nome, imagem_pil):
 
 # --- Interface ---
 
-# Layout de Coluna única no topo para a câmera (Melhor para mobile)
 col_cam = st.container()
 
 with col_cam:
@@ -180,47 +195,52 @@ with col_cam:
     if foto:
         img_original = Image.open(foto)
         
-        # Recorte Central Simples
+        # --- RECORTE INTELIGENTE (CROP) ---
+        # Garante que a foto fique na proporção 200:250 sem distorcer,
+        # cortando o excesso das laterais OU do topo/fundo.
         w, h = img_original.size
         target_ratio = 200/250
         current_ratio = w/h
+        
         if current_ratio > target_ratio:
+            # Imagem mais Larga que o alvo -> Corta laterais
             new_w = h * target_ratio
             left = (w - new_w)/2
             img_crop = img_original.crop((left, 0, left + new_w, h))
         else:
-            img_crop = img_original
+            # Imagem mais Alta que o alvo -> Corta topo e baixo
+            new_h = w / target_ratio
+            top = (h - new_h)/2
+            img_crop = img_original.crop((0, top, w, top + new_h))
             
         with st.spinner("Analisando biometria..."):
             matches, img_proc = encontrar_matches(img_crop)
             st.session_state['resultados'] = matches
             st.session_state['foto_atual'] = img_proc
 
-# Resultados abaixo da câmera
+# Resultados
 if st.session_state['foto_atual']:
     st.divider()
     
-    # Abas para separar Cadastro de Busca
     tab1, tab2 = st.tabs(["📊 Resultados", "💾 Salvar Nova"])
     
     with tab1:
         res = st.session_state['resultados']
         if res:
-            # Controles simplificados
             c1, c2 = st.columns([2, 1])
             with c1: ordem = st.selectbox("Ordenar por:", ["Mais Parecidas", "Menos Parecidas"])
             with c2: qtde = st.selectbox("Qtd:", [3, 6, 9], index=0)
             
             lista_final = res[:qtde] if "Mais" in ordem else res[-qtde:][::-1]
             
-            cols = st.columns(3) # Sempre 3 por linha, quebra automático no mobile
+            cols = st.columns(3) 
             for i, item in enumerate(lista_final):
                 with cols[i % 3]:
                     st.image(item['imagem'], use_container_width=True)
                     
                     pct = item['porcentagem']
                     
-                    # NOVA REGRA DE CORES
+                    # REGRA DE CORES
                     if pct >= 60: 
                         cor = "green"
                     else: 
