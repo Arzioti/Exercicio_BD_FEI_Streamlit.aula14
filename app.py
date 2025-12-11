@@ -9,7 +9,7 @@ import cv2
 # --- Configuração da Página (OBRIGATÓRIO SER A PRIMEIRA LINHA) ---
 st.set_page_config(page_title="Reconhecimento Facial", layout="wide", initial_sidebar_state="collapsed")
 
-# --- CSS SUPREMO PARA MOBILE (CORRIGIDO V3 - QUEBRA DE ASPECT RATIO) ---
+# --- CSS SUPREMO PARA MOBILE (CORRIGIDO V5 - NUCLEAR) ---
 st.markdown("""
 <style>
     /* 1. RESET TOTAL DA PÁGINA */
@@ -17,6 +17,7 @@ st.markdown("""
         padding: 0 !important;
         margin: 0 !important;
         max-width: 100% !important;
+        overflow: hidden !important;
     }
     
     header, footer, #MainMenu { display: none !important; }
@@ -25,52 +26,69 @@ st.markdown("""
         background-color: black;
     }
 
-    /* 2. HACK AGRESSIVO PARA A CÂMERA */
+    /* 2. FORÇA BRUTA NO VIDEO (V5) */
     
-    /* O Container Principal */
+    /* Container Principal: Fixo na tela */
     div[data-testid="stCameraInput"] {
-        width: 100% !important;
-        background-color: black;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 85vh !important;
+        z-index: 1 !important;
+        background-color: black !important;
     }
 
-    /* O Container INTERNO que segura o vídeo (O culpado pela trava) */
-    div[data-testid="stCameraInput"] > div {
-        aspect-ratio: unset !important; /* [CRÍTICO] Remove a trava de proporção original */
+    /* Força TODOS os containers internos (Pai e Avô do vídeo) a ocuparem 100% */
+    div[data-testid="stCameraInput"] > div,
+    div[data-testid="stCameraInput"] > div > div {
+        height: 100% !important;
         width: 100% !important;
-        height: 85vh !important; /* Altura forçada */
-        padding-bottom: 0 !important; /* Remove espaçamento extra calculado */
+        aspect-ratio: unset !important; /* Mata o cálculo de proporção */
+        padding-bottom: 0 !important;
+        margin-bottom: 0 !important;
     }
 
-    /* O Elemento de Vídeo em si */
+    /* O Elemento de Vídeo em si - A regra suprema */
+    /* Usamos seletores genéricos dentro do input para garantir que pegue */
     div[data-testid="stCameraInput"] video {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
         width: 100% !important;
-        height: 100% !important; /* Preenche o pai (que tem 85vh) */
-        object-fit: cover !important; /* Zoom para preencher sem distorcer */
+        height: 100% !important;
+        
+        /* O segredo: min-height força o vídeo a ignorar o redimensionamento do JS */
+        min-height: 85vh !important; 
+        min-width: 100vw !important;
+        
+        object-fit: cover !important; /* Garante que preencha tudo (zoom) */
+        z-index: 2 !important;
     }
 
     /* 3. MÁSCARA GUIA (ROSTO) */
     div[data-testid="stCameraInput"]::after {
         content: ""; 
         position: absolute; 
-        top: 40%;
+        top: 45%; 
         left: 50%; 
         transform: translate(-50%, -50%);
-        width: 65vw; 
+        width: 70vw; 
         height: 45vh; 
         border: 4px dashed rgba(255, 255, 255, 0.6); 
         border-radius: 50%; 
-        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+        box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.5); /* Sombra gigante */
         pointer-events: none; 
-        z-index: 50;
+        z-index: 50; /* Acima do vídeo */
     }
 
-    /* 4. BOTÃO DE CAPTURA - POSICIONAMENTO ABSOLUTO */
+    /* 4. BOTÃO DE CAPTURA */
     div[data-testid="stCameraInput"] button { 
         position: absolute !important; 
-        bottom: 30px !important;
+        bottom: 5vh !important;
         left: 50% !important;
         transform: translateX(-50%) !important;
-        z-index: 100 !important; 
+        z-index: 100 !important; /* Bem acima de tudo */
         width: 80px !important; 
         height: 80px !important;
         border-radius: 50% !important;
@@ -84,9 +102,19 @@ st.markdown("""
         background-color: #cc0000 !important;
     }
 
-    /* Esconde textos pequenos de instrução que o Streamlit as vezes mostra */
-    div[data-testid="stCameraInput"] small {
-        display: none !important;
+    /* Esconde textos auxiliares */
+    div[data-testid="stCameraInput"] small { display: none !important; }
+
+    /* Área de Resultados */
+    .resultados-container {
+        margin-top: 85vh !important;
+        position: relative;
+        z-index: 200;
+        background-color: #0e1117;
+        padding: 20px;
+        min-height: 50vh;
+        border-top-left-radius: 20px;
+        border-top-right-radius: 20px;
     }
     
 </style>
@@ -192,9 +220,10 @@ def salvar_no_banco(nome, imagem_pil):
 
 # --- Interface Principal (Mobile First) ---
 
-col_cam = st.container()
+# Container vazio apenas para segurar o lugar, já que o CSS posiciona tudo como fixed
+placeholder_cam = st.empty()
 
-with col_cam:
+with placeholder_cam:
     foto = st.camera_input("Tire a foto", label_visibility="collapsed")
 
 # Lógica de Cache Inteligente: Só processa se a foto mudou
@@ -226,8 +255,8 @@ if foto:
 
 # --- Exibição dos Resultados ---
 if st.session_state['foto_atual']:
-    # Fundo cinza escuro para a área de resultados para destacar do fundo preto da câmera
-    st.markdown("<div style='padding: 15px; background-color: #0e1117; border-top-left-radius: 20px; border-top-right-radius: 20px; min-height: 50vh;'>", unsafe_allow_html=True)
+    # Classe CSS específica para empurrar o conteúdo para baixo da câmera fixa
+    st.markdown("<div class='resultados-container'>", unsafe_allow_html=True)
     
     tab1, tab2 = st.tabs(["📊 Comparação", "💾 Salvar"])
     
