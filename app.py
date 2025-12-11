@@ -9,101 +9,90 @@ import cv2
 # --- Configuração da Página (OBRIGATÓRIO SER A PRIMEIRA LINHA) ---
 st.set_page_config(page_title="Reconhecimento Facial", layout="wide", initial_sidebar_state="collapsed")
 
-# --- CSS SUPREMO PARA MOBILE (CORRIGIDO PARA PREENCHIMENTO TOTAL) ---
+# --- CSS SUPREMO PARA MOBILE (CORRIGIDO V2) ---
 st.markdown("""
 <style>
-    /* 1. REMOVE BORDAS E ESPAÇOS DO STREAMLIT */
+    /* 1. CONFIGURAÇÕES GERAIS DA PÁGINA */
     .block-container {
-        padding-top: 0rem !important;
-        padding-bottom: 0rem !important;
-        padding-left: 0rem !important;
-        padding-right: 0rem !important;
+        padding: 0 !important;
         margin: 0 !important;
         max-width: 100% !important;
     }
     
-    /* Esconde elementos padrão do Streamlit */
-    header, footer, #MainMenu { visibility: hidden; display: none; }
+    header, footer, #MainMenu { display: none !important; }
     
-    /* Fundo geral preto para evitar bordas brancas piscando */
     .stApp {
-        background-color: black;
+        background-color: black; /* Fundo preto total */
     }
 
-    /* 2. CONFIGURAÇÃO DA CÂMERA EM TELA CHEIA (FIX PARA O VÍDEO ESTICAR) */
+    /* 2. FORÇAR VÍDEO A OCUPAR A TELA (AQUI ESTÁ A CORREÇÃO PRINCIPAL) */
     
-    /* Container Principal */
+    /* O Container do input da câmera */
     div[data-testid="stCameraInput"] {
         width: 100% !important;
-        height: 85vh !important; /* Aumentado para 85% da altura da viewport */
+        margin: 0 !important;
         background-color: black;
-        margin-bottom: 0px !important;
         position: relative !important;
     }
 
-    /* CRUCIAL: Força o container interno do Streamlit a ocupar 100% da altura */
-    div[data-testid="stCameraInput"] > div {
-        height: 100% !important;
-        width: 100% !important;
-        border-radius: 0 !important;
-    }
-
-    /* O Vídeo em si */
+    /* O elemento VIDEO direto - Força bruta na altura */
     div[data-testid="stCameraInput"] video {
         width: 100% !important;
-        height: 100% !important; 
-        object-fit: cover !important; /* Garante que preencha todo o espaço sem distorcer (zoom crop) */
+        height: 80vh !important; /* Força 80% da altura da tela, ignorando proporção original */
+        min-height: 80vh !important;
+        object-fit: cover !important; /* Corta as laterais para preencher sem distorcer (zoom) */
         border-radius: 0 !important;
+        z-index: 1;
     }
 
-    /* 3. MÁSCARA GUIA (ROSTO) */
+    /* 3. MÁSCARA GUIA (ROSTO) - Ajustado para ficar sobre o vídeo */
     div[data-testid="stCameraInput"]::after {
         content: ""; 
         position: absolute; 
-        top: 45%; /* Um pouco acima do centro exato para enquadrar melhor o rosto */
+        top: 40%; /* Centralizado na parte superior visual */
         left: 50%; 
         transform: translate(-50%, -50%);
         
-        width: 70vw; /* Largura baseada na tela do celular */
-        height: 55vh; /* Altura baseada na tela */
+        width: 65vw; 
+        height: 45vh; 
         
-        /* Borda tracejada suave */
-        border: 4px dashed rgba(255, 255, 255, 0.5); 
-        border-radius: 50%; /* Oval */
+        border: 4px dashed rgba(255, 255, 255, 0.6); 
+        border-radius: 50%; 
+        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5); /* Escurece tudo em volta do rosto */
         
         pointer-events: none; 
-        z-index: 90;
+        z-index: 50;
     }
 
-    /* 4. BOTÃO DE CAPTURA PERSONALIZADO */
+    /* 4. BOTÃO DE CAPTURA - Fixo na parte inferior do vídeo */
     div[data-testid="stCameraInput"] button { 
-        z-index: 100 !important; 
         position: absolute !important; 
-        bottom: 30px !important; 
+        bottom: 5% !important; /* 5% da base do container */
         left: 50% !important;
         transform: translateX(-50%) !important;
+        z-index: 100 !important; 
         
-        width: 70px !important; 
-        height: 70px !important;
+        width: 80px !important; 
+        height: 80px !important;
         border-radius: 50% !important;
         
-        background-color: #ff4444 !important; /* Vermelho */
-        border: 4px solid white !important;    /* Borda Branca */
-        color: transparent !important;         /* Esconde texto */
+        background-color: #ff4444 !important;
+        border: 4px solid white !important;
+        color: transparent !important;
         
-        padding: 0 !important;
-        margin: 0 !important;
-        transition: transform 0.1s;
+        transition: transform 0.2s;
     }
     
-    /* Remove ícones internos padrão */
-    div[data-testid="stCameraInput"] button::after { content: ""; }
-    div[data-testid="stCameraInput"] button > * { display: none; }
-    
-    /* Efeito de clique */
     div[data-testid="stCameraInput"] button:active {
         transform: translateX(-50%) scale(0.9) !important;
         background-color: #cc0000 !important;
+    }
+
+    /* Ajuste para telas pequenas não quebrarem */
+    @media (max-height: 600px) {
+        div[data-testid="stCameraInput"] video {
+            height: 70vh !important;
+        }
     }
     
 </style>
