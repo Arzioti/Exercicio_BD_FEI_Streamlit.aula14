@@ -9,7 +9,7 @@ import cv2
 # --- Configuração da Página (OBRIGATÓRIO SER A PRIMEIRA LINHA) ---
 st.set_page_config(page_title="Reconhecimento Facial", layout="wide", initial_sidebar_state="collapsed")
 
-# --- CSS SUPREMO PARA MOBILE (CORRIGIDO V5 - NUCLEAR) ---
+# --- CSS SUPREMO PARA MOBILE (CORRIGIDO V6 - SCROLL LIBERADO & IMG FULL) ---
 st.markdown("""
 <style>
     /* 1. RESET TOTAL DA PÁGINA */
@@ -17,7 +17,7 @@ st.markdown("""
         padding: 0 !important;
         margin: 0 !important;
         max-width: 100% !important;
-        overflow: hidden !important;
+        /* IMPORTANTE: Removemos o overflow hidden para permitir rolar até o resultado */
     }
     
     header, footer, #MainMenu { display: none !important; }
@@ -26,7 +26,7 @@ st.markdown("""
         background-color: black;
     }
 
-    /* 2. FORÇA BRUTA NO VIDEO (V5) */
+    /* 2. FORÇA BRUTA NO VIDEO E NA IMAGEM CAPTURADA */
     
     /* Container Principal: Fixo na tela */
     div[data-testid="stCameraInput"] {
@@ -39,30 +39,29 @@ st.markdown("""
         background-color: black !important;
     }
 
-    /* Força TODOS os containers internos (Pai e Avô do vídeo) a ocuparem 100% */
+    /* Força TODOS os containers internos */
     div[data-testid="stCameraInput"] > div,
     div[data-testid="stCameraInput"] > div > div {
         height: 100% !important;
         width: 100% !important;
-        aspect-ratio: unset !important; /* Mata o cálculo de proporção */
+        aspect-ratio: unset !important;
         padding-bottom: 0 !important;
         margin-bottom: 0 !important;
     }
 
-    /* O Elemento de Vídeo em si - A regra suprema */
-    /* Usamos seletores genéricos dentro do input para garantir que pegue */
-    div[data-testid="stCameraInput"] video {
+    /* O Elemento de Vídeo (Ao vivo) E a Imagem (Capturada) - AMBOS GIGANTES */
+    div[data-testid="stCameraInput"] video, 
+    div[data-testid="stCameraInput"] img {
         position: absolute !important;
         top: 0 !important;
         left: 0 !important;
         width: 100% !important;
         height: 100% !important;
         
-        /* O segredo: min-height força o vídeo a ignorar o redimensionamento do JS */
         min-height: 85vh !important; 
         min-width: 100vw !important;
         
-        object-fit: cover !important; /* Garante que preencha tudo (zoom) */
+        object-fit: cover !important; 
         z-index: 2 !important;
     }
 
@@ -77,9 +76,9 @@ st.markdown("""
         height: 45vh; 
         border: 4px dashed rgba(255, 255, 255, 0.6); 
         border-radius: 50%; 
-        box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.5); /* Sombra gigante */
+        box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.5); 
         pointer-events: none; 
-        z-index: 50; /* Acima do vídeo */
+        z-index: 50; 
     }
 
     /* 4. BOTÃO DE CAPTURA */
@@ -88,7 +87,7 @@ st.markdown("""
         bottom: 5vh !important;
         left: 50% !important;
         transform: translateX(-50%) !important;
-        z-index: 100 !important; /* Bem acima de tudo */
+        z-index: 100 !important; 
         width: 80px !important; 
         height: 80px !important;
         border-radius: 50% !important;
@@ -102,12 +101,25 @@ st.markdown("""
         background-color: #cc0000 !important;
     }
 
+    /* 5. SPINNER/LOADING VISÍVEL */
+    /* Garante que o spinner apareça em cima da tela preta */
+    .stSpinner {
+        position: fixed !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        z-index: 9999 !important;
+        background: rgba(0,0,0,0.7);
+        padding: 20px;
+        border-radius: 15px;
+    }
+
     /* Esconde textos auxiliares */
     div[data-testid="stCameraInput"] small { display: none !important; }
 
-    /* Área de Resultados */
+    /* Área de Resultados - Empurra para baixo */
     .resultados-container {
-        margin-top: 85vh !important;
+        margin-top: 85vh !important; 
         position: relative;
         z-index: 200;
         background-color: #0e1117;
