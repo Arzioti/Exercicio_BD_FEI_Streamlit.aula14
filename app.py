@@ -9,7 +9,7 @@ import cv2
 # --- Configuração da Página (OBRIGATÓRIO SER A PRIMEIRA LINHA) ---
 st.set_page_config(page_title="Reconhecimento Facial", layout="wide", initial_sidebar_state="collapsed")
 
-# --- CSS SUPREMO PARA MOBILE (CORRIGIDO V7 - ALTERNÂNCIA DE TELAS) ---
+# --- CSS SUPREMO PARA MOBILE (CORRIGIDO V8 - NUCLEAR + ALTERNÂNCIA) ---
 st.markdown("""
 <style>
     /* 1. RESET TOTAL DA PÁGINA */
@@ -27,23 +27,31 @@ st.markdown("""
 
     /* 2. ESTILOS DO MODO CÂMERA (FIXO E GIGANTE) */
     
-    /* Container da Câmera */
+    /* Container Principal da Câmera - Fixo e Tela Cheia */
     div[data-testid="stCameraInput"] {
         position: fixed !important;
         top: 0 !important;
         left: 0 !important;
         width: 100vw !important;
-        height: 100vh !important; /* Tela inteira */
+        height: 100vh !important;
         z-index: 10 !important;
         background-color: black !important;
     }
 
-    /* Elementos internos da câmera */
-    div[data-testid="stCameraInput"] > div,
+    /* Wrapper interno do Streamlit (Onde ele tenta travar a proporção) */
+    div[data-testid="stCameraInput"] > div {
+        width: 100% !important;
+        height: 100% !important;
+        aspect-ratio: unset !important; /* [CRUCIAL] Remove a trava 4:3 ou 16:9 */
+    }
+
+    /* O Vídeo em si - Força bruta para ignorar redimensionamento JS */
     div[data-testid="stCameraInput"] video {
         width: 100% !important;
         height: 100% !important;
-        object-fit: cover !important;
+        min-height: 100vh !important; /* Garante que nunca encolha */
+        min-width: 100vw !important;
+        object-fit: cover !important; /* Preenche a tela (zoom) */
     }
 
     /* Máscara Guia (Rosto) */
@@ -87,7 +95,7 @@ st.markdown("""
         padding-top: 40px;
     }
     
-    /* Botão Voltar/Nova Foto (Estilo flutuante ou fixo se preferir) */
+    /* Botão Voltar/Nova Foto */
     .btn-nova-foto {
         width: 100%;
         padding: 15px;
