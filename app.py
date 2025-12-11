@@ -25,31 +25,32 @@ st.markdown("""
     /* Esconde elementos padrão do Streamlit */
     header, footer, #MainMenu { visibility: hidden; display: none; }
     
-    /* 2. CONFIGURAÇÃO DA CÂMERA EM TELA CHEIA */
+    /* 2. CONFIGURAÇÃO DA CÂMERA EM TELA CHEIA (ALTURA FORÇADA) */
     div[data-testid="stCameraInput"] {
         width: 100% !important;
-        background-color: black; /* Fundo preto estilo app nativo */
+        /* AQUI ESTÁ A MUDANÇA: Força a altura a ser 80% da altura da tela do celular */
+        height: 80vh !important; 
+        background-color: black;
         margin-bottom: 0px !important;
     }
 
     div[data-testid="stCameraInput"] video {
         width: 100% !important;
-        height: auto !important;
-        aspect-ratio: 0.75 !important; /* Formato Retrato (4:3) */
-        object-fit: cover !important;
+        height: 100% !important; /* Preenche os 80vh definidos acima */
+        object-fit: cover !important; /* Corta o excesso lateral para não distorcer */
         border-radius: 0 !important;
     }
 
     /* 3. MÁSCARA GUIA (SQUIRCLE) */
-    /* Usamos pointer-events: none para garantir que não bloqueie cliques na tela */
     div[data-testid="stCameraInput"]::after {
         content: ""; 
         position: absolute; 
-        top: 55%; /* Levemente para baixo para não cobrir o botão de inverter */
+        top: 50%; /* Centralizado no vídeo */
         left: 50%; 
         transform: translate(-50%, -50%);
         
         width: 80%;
+        /* Define a proporção da máscara (rosto) separada do vídeo */
         aspect-ratio: 0.8; 
         
         /* Borda tracejada suave */
@@ -60,7 +61,7 @@ st.markdown("""
         z-index: 10;
     }
 
-    /* 4. BOTÃO DE CAPTURA PERSONALIZADO (VERMELHO COM CÍRCULO BRANCO) */
+    /* 4. BOTÃO DE CAPTURA PERSONALIZADO */
     div[data-testid="stCameraInput"] button { 
         z-index: 20; 
         position: absolute; 
