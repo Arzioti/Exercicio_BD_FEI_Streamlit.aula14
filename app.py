@@ -8,7 +8,7 @@ import numpy as np
 # --- Configuração da Página (OBRIGATÓRIO SER A PRIMEIRA LINHA) ---
 st.set_page_config(page_title="Reconhecimento Facial", layout="wide", initial_sidebar_state="collapsed")
 
-# --- CSS ESTÁVEL (VERSÃO ROBUSTA V14 - ENQUADRAMENTO PERFEITO) ---
+# --- CSS V15 - PADRÃO BANCO DE DADOS (SEM ZOOM) ---
 st.markdown("""
 <style>
     /* 1. RESET BÁSICO */
@@ -24,7 +24,7 @@ st.markdown("""
         background-color: black;
     }
 
-    /* 2. CÂMERA EM TELA CHEIA (FORÇA BRUTA) */
+    /* 2. CÂMERA FULL SCREEN (SEM DISTORÇÃO) */
     div[data-testid="stCameraInput"] {
         position: fixed !important;
         top: 0 !important;
@@ -46,25 +46,25 @@ st.markdown("""
         height: 100vh !important;
         object-fit: cover !important;
         min-height: 100vh !important;
-        object-position: center !important; /* GARANTE O CENTRO */
+        object-position: center !important; /* CENTRO EXATO */
     }
 
-    /* 3. MÁSCARA GUIA (AJUSTADA PARA 40% - MAIS EQUILIBRADA) */
+    /* 3. MÁSCARA GUIA (CENTRALIZADA 50%) */
     div[data-testid="stCameraInput"]::after {
         content: ""; 
         position: absolute; 
         
-        /* 40% é o ponto ideal para selfies onde aparece o rosto todo */
-        top: 40%; 
+        /* Centralizado para alinhar com o crop matemático */
+        top: 50%; 
         left: 50%; 
         transform: translate(-50%, -50%);
         
-        width: 280px; /* Mais largo para enquadrar rosto + orelhas */
-        height: 380px; /* Mais alto para queixo e topo da cabeça */
+        width: 280px; 
+        height: 380px; 
         
-        border: 3px dashed rgba(255, 255, 255, 0.7); 
-        border-radius: 55% 55% 60% 60%; /* Levemente mais oval para formato de rosto */
-        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6); 
+        border: 3px dashed rgba(255, 255, 255, 0.5); 
+        border-radius: 50%; 
+        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5); 
         pointer-events: none; 
         z-index: 20; 
     }
@@ -72,7 +72,7 @@ st.markdown("""
     /* 4. BOTÃO DE CAPTURA */
     div[data-testid="stCameraInput"] button { 
         position: absolute !important; 
-        bottom: 60px !important; 
+        bottom: 50px !important; 
         left: 50% !important;
         transform: translateX(-50%) !important;
         z-index: 30 !important; 
@@ -213,29 +213,27 @@ if st.session_state['foto_atual'] is None:
             img_original = Image.open(foto)
             img_original = ImageOps.exif_transpose(img_original)
             
-            # --- CROP CALIBRADO (ZOOM OUT + CENTRO 40%) ---
+            # --- CROP MAXIMIZADO (SEM ZOOM EXCESSIVO) ---
+            # Objetivo: Manter o máximo da imagem original, apenas ajustando a proporção para 4:5 (0.8)
+            # Isso garante que se você enquadrou o rosto na tela, ele vai aparecer na foto.
+            
             w, h = img_original.size
+            img_ratio = w / h
+            target_ratio = 200 / 250 # 0.8
             
-            # 1. TAMANHO: Aumentei para 70% da largura (Zoom Out para pegar queixo e topo)
-            crop_w = min(w, h) * 0.70 
-            crop_h = crop_w * 1.35 # Proporção retangular para caber o rosto todo
-            
-            # 2. POSIÇÃO: Sincronizada com o CSS (40% da altura)
-            center_x = w / 2
-            center_y = h * 0.40 
-            
-            left = center_x - (crop_w / 2)
-            top = center_y - (crop_h / 2)
-            right = center_x + (crop_w / 2)
-            bottom = center_y + (crop_h / 2)
-            
-            # Proteção de bordas (Clamp)
-            if left < 0: left = 0
-            if top < 0: top = 0
-            if right > w: right = w
-            if bottom > h: bottom = h
-            
-            img_crop = img_original.crop((left, top, right, bottom))
+            if img_ratio > target_ratio:
+                # Imagem é mais "gorda" que o alvo (ex: PC ou Horizontal)
+                # Cortamos as laterais, mantemos a altura total
+                new_w = h * target_ratio
+                left = (w - new_w) / 2
+                img_crop = img_original.crop((left, 0, left + new_w, h))
+            else:
+                # Imagem é mais "alta" que o alvo (ex: Celular Vertical 9:16)
+                # Cortamos o excesso de topo e base, mantemos a largura total.
+                # Como a máscara está no CENTRO, o corte centralizado é perfeito.
+                new_h = w / target_ratio
+                top = (h - new_h) / 2
+                img_crop = img_original.crop((0, top, w, top + new_h))
             
             matches, img_proc = encontrar_matches(img_crop)
             
@@ -259,7 +257,7 @@ else:
     st.markdown("<h3 style='text-align: center;'>Análise Concluída</h3>", unsafe_allow_html=True)
     
     # Exibe a foto analisada maior para conferência
-    st.image(st.session_state['foto_atual'], caption="Sua Foto Capturada", width=180)
+    st.image(st.session_state['foto_atual'], caption="Sua Foto (Padrão Banco)", width=200)
     
     st.divider()
     
