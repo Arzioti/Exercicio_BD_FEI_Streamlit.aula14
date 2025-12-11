@@ -9,7 +9,7 @@ import cv2
 # --- Configuração da Página (OBRIGATÓRIO SER A PRIMEIRA LINHA) ---
 st.set_page_config(page_title="Reconhecimento Facial", layout="wide", initial_sidebar_state="collapsed")
 
-# --- CSS SUPREMO PARA MOBILE (VISUALIZAÇÃO & BOTÃO) ---
+# --- CSS SUPREMO PARA MOBILE (CORRIGIDO PARA PREENCHIMENTO TOTAL) ---
 st.markdown("""
 <style>
     /* 1. REMOVE BORDAS E ESPAÇOS DO STREAMLIT */
@@ -25,60 +25,75 @@ st.markdown("""
     /* Esconde elementos padrão do Streamlit */
     header, footer, #MainMenu { visibility: hidden; display: none; }
     
-    /* 2. CONFIGURAÇÃO DA CÂMERA EM TELA CHEIA (ALTURA FORÇADA) */
-    div[data-testid="stCameraInput"] {
-        width: 100% !important;
-        /* AQUI ESTÁ A MUDANÇA: Força a altura a ser 80% da altura da tela do celular */
-        height: 80vh !important; 
+    /* Fundo geral preto para evitar bordas brancas piscando */
+    .stApp {
         background-color: black;
-        margin-bottom: 0px !important;
     }
 
-    div[data-testid="stCameraInput"] video {
+    /* 2. CONFIGURAÇÃO DA CÂMERA EM TELA CHEIA (FIX PARA O VÍDEO ESTICAR) */
+    
+    /* Container Principal */
+    div[data-testid="stCameraInput"] {
         width: 100% !important;
-        height: 100% !important; /* Preenche os 80vh definidos acima */
-        object-fit: cover !important; /* Corta o excesso lateral para não distorcer */
+        height: 85vh !important; /* Aumentado para 85% da altura da viewport */
+        background-color: black;
+        margin-bottom: 0px !important;
+        position: relative !important;
+    }
+
+    /* CRUCIAL: Força o container interno do Streamlit a ocupar 100% da altura */
+    div[data-testid="stCameraInput"] > div {
+        height: 100% !important;
+        width: 100% !important;
         border-radius: 0 !important;
     }
 
-    /* 3. MÁSCARA GUIA (SQUIRCLE) */
+    /* O Vídeo em si */
+    div[data-testid="stCameraInput"] video {
+        width: 100% !important;
+        height: 100% !important; 
+        object-fit: cover !important; /* Garante que preencha todo o espaço sem distorcer (zoom crop) */
+        border-radius: 0 !important;
+    }
+
+    /* 3. MÁSCARA GUIA (ROSTO) */
     div[data-testid="stCameraInput"]::after {
         content: ""; 
         position: absolute; 
-        top: 50%; /* Centralizado no vídeo */
+        top: 45%; /* Um pouco acima do centro exato para enquadrar melhor o rosto */
         left: 50%; 
         transform: translate(-50%, -50%);
         
-        width: 80%;
-        /* Define a proporção da máscara (rosto) separada do vídeo */
-        aspect-ratio: 0.8; 
+        width: 70vw; /* Largura baseada na tela do celular */
+        height: 55vh; /* Altura baseada na tela */
         
         /* Borda tracejada suave */
         border: 4px dashed rgba(255, 255, 255, 0.5); 
-        border-radius: 45%; 
+        border-radius: 50%; /* Oval */
         
         pointer-events: none; 
-        z-index: 10;
+        z-index: 90;
     }
 
     /* 4. BOTÃO DE CAPTURA PERSONALIZADO */
     div[data-testid="stCameraInput"] button { 
-        z-index: 20; 
-        position: absolute; 
-        bottom: 30px; 
-        left: 50%;
-        transform: translateX(-50%);
+        z-index: 100 !important; 
+        position: absolute !important; 
+        bottom: 30px !important; 
+        left: 50% !important;
+        transform: translateX(-50%) !important;
         
-        width: 80px !important; 
-        height: 80px !important;
+        width: 70px !important; 
+        height: 70px !important;
         border-radius: 50% !important;
         
         background-color: #ff4444 !important; /* Vermelho */
-        border: 5px solid white !important;    /* Borda Branca */
+        border: 4px solid white !important;    /* Borda Branca */
         color: transparent !important;         /* Esconde texto */
         
         padding: 0 !important;
         margin: 0 !important;
+        transition: transform 0.1s;
     }
     
     /* Remove ícones internos padrão */
@@ -87,7 +102,7 @@ st.markdown("""
     
     /* Efeito de clique */
     div[data-testid="stCameraInput"] button:active {
-        transform: translateX(-50%) scale(0.9);
+        transform: translateX(-50%) scale(0.9) !important;
         background-color: #cc0000 !important;
     }
     
