@@ -8,7 +8,7 @@ import numpy as np
 # --- Configuração da Página (OBRIGATÓRIO SER A PRIMEIRA LINHA) ---
 st.set_page_config(page_title="Reconhecimento Facial", layout="wide", initial_sidebar_state="collapsed")
 
-# --- CSS ESTÁVEL (VERSÃO ROBUSTA) ---
+# --- CSS ESTÁVEL (VERSÃO ROBUSTA V13 - MÁSCARA ALTA) ---
 st.markdown("""
 <style>
     /* 1. RESET BÁSICO */
@@ -25,7 +25,6 @@ st.markdown("""
     }
 
     /* 2. CÂMERA EM TELA CHEIA (FORÇA BRUTA) */
-    /* Isso garante que o vídeo ocupe 100% da tela e não encolha para 1/3 */
     div[data-testid="stCameraInput"] {
         position: fixed !important;
         top: 0 !important;
@@ -39,28 +38,32 @@ st.markdown("""
     div[data-testid="stCameraInput"] > div {
         height: 100vh !important;
         width: 100vw !important;
-        aspect-ratio: unset !important; /* Desliga a trava de proporção do Streamlit */
+        aspect-ratio: unset !important;
     }
 
     div[data-testid="stCameraInput"] video {
         width: 100vw !important;
         height: 100vh !important;
-        object-fit: cover !important; /* Preenche a tela toda (Zoom centralizado) */
-        min-height: 100vh !important; /* Previne encolhimento */
+        object-fit: cover !important;
+        min-height: 100vh !important;
     }
 
-    /* 3. MÁSCARA GUIA (SIMPLES E CENTRALIZADA) */
+    /* 3. MÁSCARA GUIA (SUBIDA PARA 35%) */
     div[data-testid="stCameraInput"]::after {
         content: ""; 
         position: absolute; 
-        top: 50%; 
+        
+        /* AJUSTE CRÍTICO: 35% é a altura natural dos olhos em selfie */
+        top: 35%; 
         left: 50%; 
         transform: translate(-50%, -50%);
-        width: 250px; /* Tamanho fixo para consistência */
-        height: 330px; 
-        border: 4px dashed rgba(255, 255, 255, 0.6); 
+        
+        width: 260px; /* Um pouco mais largo */
+        height: 350px; /* Um pouco mais alto */
+        
+        border: 3px dashed rgba(255, 255, 255, 0.7); 
         border-radius: 50%; 
-        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5); /* Escurece o fundo */
+        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6); 
         pointer-events: none; 
         z-index: 20; 
     }
@@ -68,7 +71,7 @@ st.markdown("""
     /* 4. BOTÃO DE CAPTURA */
     div[data-testid="stCameraInput"] button { 
         position: absolute !important; 
-        bottom: 50px !important; 
+        bottom: 60px !important; 
         left: 50% !important;
         transform: translateX(-50%) !important;
         z-index: 30 !important; 
@@ -89,11 +92,10 @@ st.markdown("""
         display: flex;
         flex-direction: column;
         align-items: center;
-        overflow-y: auto !important; /* Permite rolar */
+        overflow-y: auto !important;
     }
     
-    /* Ajuste de cor para textos */
-    .stRadio label, .stSelectbox label, p {
+    .stRadio label, .stSelectbox label, p, h3 {
         color: white !important;
     }
 
@@ -197,32 +199,40 @@ def salvar_no_banco(nome, imagem_pil):
     except Exception as e:
         st.error(f"Erro: {e}")
 
-# --- LÓGICA PRINCIPAL (Câmera Fixa -> Resultados) ---
+# --- LÓGICA PRINCIPAL ---
 
 if st.session_state['foto_atual'] is None:
     # === TELA 1: CÂMERA ===
     foto = st.camera_input("Tire a foto", label_visibility="collapsed", key=f"cam_{st.session_state.camera_key}")
     
     if foto:
-        # Esconde a câmera imediatamente após o clique
         st.markdown("""<style>div[data-testid="stCameraInput"] { display: none !important; }</style>""", unsafe_allow_html=True)
         
         with st.status("Processando...", expanded=True) as status:
             img_original = Image.open(foto)
-            img_original = ImageOps.exif_transpose(img_original) # Corrige rotação
+            img_original = ImageOps.exif_transpose(img_original)
             
-            # --- CROP SIMPLES E EFICIENTE (CENTRO EXATO) ---
-            # Assume que o usuário centralizou o rosto na tela.
-            # Corta um retângulo central da imagem original.
+            # --- CROP SINCRONIZADO COM A MÁSCARA (35% DA TELA) ---
             w, h = img_original.size
             
-            # Define o tamanho do corte (60% da menor dimensão para garantir que pegue o rosto)
-            crop_size = min(w, h) * 0.6
+            # 1. Define tamanho do crop (60% da largura da imagem)
+            crop_w = min(w, h) * 0.6
+            crop_h = crop_w * 1.25 # Mantém proporção retrato
             
-            left = (w - crop_size) / 2
-            top = (h - (crop_size * 1.25)) / 2 # Leve ajuste para proporção retrato (altura > largura)
-            right = (w + crop_size) / 2
-            bottom = (h + (crop_size * 1.25)) / 2
+            # 2. Calcula coordenadas baseadas em 35% da altura (mesmo do CSS)
+            center_x = w / 2
+            center_y = h * 0.35 # <--- ALINHAMENTO COM A MÁSCARA
+            
+            left = center_x - (crop_w / 2)
+            top = center_y - (crop_h / 2)
+            right = center_x + (crop_w / 2)
+            bottom = center_y + (crop_h / 2)
+            
+            # Proteção para não cortar fora da imagem
+            if top < 0:
+                diff = abs(top)
+                top = 0
+                bottom += diff
             
             img_crop = img_original.crop((left, top, right, bottom))
             
@@ -236,7 +246,6 @@ if st.session_state['foto_atual'] is None:
 
 else:
     # === TELA 2: RESULTADOS ===
-    # Garante que o scroll funciona e remove a câmera
     st.markdown("""
         <style>
             .block-container { overflow: auto !important; }
@@ -246,23 +255,21 @@ else:
     """, unsafe_allow_html=True)
 
     st.markdown("<div class='resultados-wrapper'>", unsafe_allow_html=True)
-    st.markdown("<h3 style='color: white; text-align: center;'>Análise Concluída</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center;'>Análise Concluída</h3>", unsafe_allow_html=True)
     
-    # Foto do Usuário
-    st.image(st.session_state['foto_atual'], caption="Sua Foto", width=150)
+    # Exibe a foto analisada maior para conferência
+    st.image(st.session_state['foto_atual'], caption="Sua Foto Capturada", width=180)
     
     st.divider()
     
     res = st.session_state['resultados']
     if res:
-        # Filtros (Restaurados)
         c_f1, c_f2 = st.columns([1, 1])
         with c_f1: qtde = st.selectbox("Qtd:", [3, 6, 9], index=0)
         with c_f2: ordem = st.radio("Ver:", ["Mais Parecidas", "Menos Parecidas"], horizontal=True)
         
         lista = res[:qtde] if "Mais" in ordem else res[-qtde:][::-1]
         
-        # Grid de Resultados
         cols = st.columns(3)
         for i, item in enumerate(lista):
             with cols[i % 3]:
