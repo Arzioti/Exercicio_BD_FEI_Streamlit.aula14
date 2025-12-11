@@ -1,7 +1,7 @@
 import streamlit as st
 from pymongo import MongoClient
 import gridfs
-from PIL import Image
+from PIL import Image, ImageOps
 import io
 import numpy as np
 import cv2
@@ -9,7 +9,7 @@ import cv2
 # --- Configuração da Página (OBRIGATÓRIO SER A PRIMEIRA LINHA) ---
 st.set_page_config(page_title="Reconhecimento Facial", layout="wide", initial_sidebar_state="collapsed")
 
-# --- CSS SUPREMO PARA MOBILE (CORRIGIDO V9 - CENTRO PERFEITO + RESULTADOS VISUAIS) ---
+# --- CSS SUPREMO PARA MOBILE (CORRIGIDO V10 - WYSIWYG REAL) ---
 st.markdown("""
 <style>
     /* 1. RESET TOTAL DA PÁGINA */
@@ -25,7 +25,7 @@ st.markdown("""
         background-color: black;
     }
 
-    /* 2. ESTILOS DO MODO CÂMERA (FIXO E GIGANTE) */
+    /* 2. ESTILOS DO MODO CÂMERA (FIXO, GIGANTE E CENTRALIZADO) */
     
     div[data-testid="stCameraInput"] {
         position: fixed !important;
@@ -48,21 +48,24 @@ st.markdown("""
         height: 100% !important;
         min-height: 100vh !important;
         min-width: 100vw !important;
-        object-fit: cover !important; /* Zoom para preencher */
+        
+        /* CORREÇÃO CRUCIAL DE ALINHAMENTO */
+        object-fit: cover !important; 
+        object-position: center center !important; /* Garante que o centro do vídeo seja o centro da tela */
     }
 
-    /* MÁSCARA GUIA (AGORA EXATAMENTE NO CENTRO 50%) */
+    /* MÁSCARA GUIA (NO CENTRO EXATO) */
     div[data-testid="stCameraInput"]::after {
         content: ""; 
         position: absolute; 
-        top: 50%; /* Centralizado verticalmente */
-        left: 50%; /* Centralizado horizontalmente */
+        top: 50%; 
+        left: 50%; 
         transform: translate(-50%, -50%);
-        width: 60vw; /* Um pouco menor para forçar o usuário a se aproximar */
-        height: 40vh; 
-        border: 4px dashed rgba(255, 255, 255, 0.7); 
+        width: 65vw; /* Tamanho confortável para o rosto */
+        height: 45vh; 
+        border: 4px dashed rgba(255, 255, 255, 0.8); 
         border-radius: 50%; 
-        box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.7); /* Sombra mais escura */
+        box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.6); /* Escurece o fundo para destacar o foco */
         pointer-events: none; 
         z-index: 20; 
     }
@@ -87,28 +90,19 @@ st.markdown("""
     .resultados-wrapper {
         background-color: #0e1117;
         min-height: 100vh;
+        padding: 20px;
         display: flex;
         flex-direction: column;
         align-items: center;
-        padding: 20px;
     }
     
-    /* Estilo para a imagem analisada (Sua Foto) */
-    .img-analisada {
-        border: 2px solid #00ff00;
-        border-radius: 10px;
+    .img-destaque {
+        border-radius: 15px;
+        border: 3px solid #4CAF50;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         margin-bottom: 20px;
-        box-shadow: 0 0 20px rgba(0, 255, 0, 0.2);
-    }
-    
-    .titulo-secao {
-        color: white;
-        font-size: 1.2rem;
-        margin: 10px 0;
-        text-align: center;
-        width: 100%;
-        border-bottom: 1px solid #333;
-        padding-bottom: 5px;
+        max-height: 50vh;
+        object-fit: contain;
     }
 
     /* Esconde textos pequenos */
@@ -230,17 +224,23 @@ if st.session_state['foto_atual'] is None:
         with st.status("🔍 Processando biometria...", expanded=True) as status:
             img_original = Image.open(foto)
             
-            # Crop Inteligente - CENTRO EXATO (50%)
-            # Isso garante que o que estava na máscara (que está no centro) seja capturado
+            # Correção de Rotação (Exif) - Importante para Mobile
+            img_original = ImageOps.exif_transpose(img_original)
+            
+            # Crop Inteligente - Focado no CENTRO EXATO
+            # Como o CSS usa 'object-position: center', o centro da imagem original 
+            # corresponde ao centro da tela do celular.
             w, h = img_original.size
             target_ratio = 200/250
             current_ratio = w/h
             
             if current_ratio > target_ratio:
+                # Imagem é mais larga que o alvo (Landscape ou PC) -> Corta laterais, mantém altura
                 new_w = h * target_ratio
                 left = (w - new_w)/2
                 img_crop = img_original.crop((left, 0, left + new_w, h))
             else:
+                # Imagem é mais alta que o alvo (Portrait Mobile) -> Corta topo/base, mantém largura
                 new_h = w / target_ratio
                 top = (h - new_h)/2
                 img_crop = img_original.crop((0, top, w, top + new_h))
@@ -248,14 +248,14 @@ if st.session_state['foto_atual'] is None:
             matches, img_proc = encontrar_matches(img_crop)
             
             st.session_state['resultados'] = matches
-            st.session_state['foto_atual'] = img_proc # Esta é a imagem P&B Redimensionada
+            st.session_state['foto_atual'] = img_proc 
             
             status.update(label="Pronto!", state="complete", expanded=False)
             
         st.rerun()
 
 else:
-    # === TELA 2: RESULTADOS (VISUALIZAÇÃO LIMPA) ===
+    # === TELA 2: RESULTADOS ===
     
     st.markdown("""
         <style>
@@ -264,25 +264,22 @@ else:
         </style>
     """, unsafe_allow_html=True)
 
-    # 1. MOSTRA A FOTO QUE FOI ANALISADA (EM CIMA, GRANDE)
-    st.markdown("<h3 style='text-align: center; color: white;'>Biometria Capturada</h3>", unsafe_allow_html=True)
+    # Layout de Resultados
+    st.markdown("<div class='resultados-wrapper'>", unsafe_allow_html=True)
     
-    # Coluna centralizada para a foto
-    c_img1, c_img2, c_img3 = st.columns([1, 2, 1])
-    with c_img2:
-        # Mostra a imagem processada (P&B, 200x250)
-        st.image(st.session_state['foto_atual'], caption="Proporção Análise (200x250)", use_container_width=True)
+    st.markdown("<h3 style='color: white; margin-bottom: 10px;'>📸 Biometria Capturada</h3>", unsafe_allow_html=True)
+    
+    # Exibe a foto analisada com destaque (para o usuário ver que é a mesma)
+    st.image(st.session_state['foto_atual'], caption="Imagem Processada", width=200) # Largura fixa para ficar elegante
     
     st.divider()
     
-    # 2. MATCHES ENCONTRADOS
-    st.markdown("<h4 style='color: white;'>🔍 Similares no Banco</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='color: white;'>🔍 Similares Encontrados</h4>", unsafe_allow_html=True)
     
     res = st.session_state['resultados']
     if res:
-        # Carrossel ou Grid de resultados
         cols = st.columns(3)
-        for i, item in enumerate(res[:3]): # Mostra top 3 direto
+        for i, item in enumerate(res[:3]):
             with cols[i % 3]:
                 st.image(item['imagem'], use_container_width=True)
                 pct = item['porcentagem']
@@ -293,19 +290,17 @@ else:
 
     st.divider()
 
-    # 3. OPÇÕES (SALVAR / TENTAR DE NOVO)
-    c_btn1, c_btn2 = st.columns(2)
-    
-    with c_btn1:
-        if st.button("🔄 Nova Foto", use_container_width=True):
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("🔄 Voltar", use_container_width=True):
             resetar_app()
-            
-    with c_btn2:
-        # Popover para salvar (para não ocupar espaço na tela principal)
-        with st.popover("💾 Salvar Esta", use_container_width=True):
-            nome_input = st.text_input("Nome:")
-            if st.button("Confirmar Salvar"):
-                if nome_input:
-                    salvar_no_banco(nome_input, st.session_state['foto_atual'])
+    with c2:
+        with st.popover("💾 Salvar", use_container_width=True):
+            nome = st.text_input("Nome:")
+            if st.button("Confirmar"):
+                if nome:
+                    salvar_no_banco(nome, st.session_state['foto_atual'])
                 else:
-                    st.warning("Digite um nome.")
+                    st.warning("Nome vazio")
+                    
+    st.markdown("</div>", unsafe_allow_html=True)
