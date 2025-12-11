@@ -8,7 +8,7 @@ import numpy as np
 # --- Configuração da Página (OBRIGATÓRIO SER A PRIMEIRA LINHA) ---
 st.set_page_config(page_title="Reconhecimento Facial", layout="wide", initial_sidebar_state="collapsed")
 
-# --- CSS ESTÁVEL (VERSÃO ROBUSTA V13 - MÁSCARA ALTA) ---
+# --- CSS ESTÁVEL (VERSÃO ROBUSTA V14 - ENQUADRAMENTO PERFEITO) ---
 st.markdown("""
 <style>
     /* 1. RESET BÁSICO */
@@ -46,23 +46,24 @@ st.markdown("""
         height: 100vh !important;
         object-fit: cover !important;
         min-height: 100vh !important;
+        object-position: center !important; /* GARANTE O CENTRO */
     }
 
-    /* 3. MÁSCARA GUIA (SUBIDA PARA 35%) */
+    /* 3. MÁSCARA GUIA (AJUSTADA PARA 40% - MAIS EQUILIBRADA) */
     div[data-testid="stCameraInput"]::after {
         content: ""; 
         position: absolute; 
         
-        /* AJUSTE CRÍTICO: 35% é a altura natural dos olhos em selfie */
-        top: 35%; 
+        /* 40% é o ponto ideal para selfies onde aparece o rosto todo */
+        top: 40%; 
         left: 50%; 
         transform: translate(-50%, -50%);
         
-        width: 260px; /* Um pouco mais largo */
-        height: 350px; /* Um pouco mais alto */
+        width: 280px; /* Mais largo para enquadrar rosto + orelhas */
+        height: 380px; /* Mais alto para queixo e topo da cabeça */
         
         border: 3px dashed rgba(255, 255, 255, 0.7); 
-        border-radius: 50%; 
+        border-radius: 55% 55% 60% 60%; /* Levemente mais oval para formato de rosto */
         box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6); 
         pointer-events: none; 
         z-index: 20; 
@@ -212,27 +213,27 @@ if st.session_state['foto_atual'] is None:
             img_original = Image.open(foto)
             img_original = ImageOps.exif_transpose(img_original)
             
-            # --- CROP SINCRONIZADO COM A MÁSCARA (35% DA TELA) ---
+            # --- CROP CALIBRADO (ZOOM OUT + CENTRO 40%) ---
             w, h = img_original.size
             
-            # 1. Define tamanho do crop (60% da largura da imagem)
-            crop_w = min(w, h) * 0.6
-            crop_h = crop_w * 1.25 # Mantém proporção retrato
+            # 1. TAMANHO: Aumentei para 70% da largura (Zoom Out para pegar queixo e topo)
+            crop_w = min(w, h) * 0.70 
+            crop_h = crop_w * 1.35 # Proporção retangular para caber o rosto todo
             
-            # 2. Calcula coordenadas baseadas em 35% da altura (mesmo do CSS)
+            # 2. POSIÇÃO: Sincronizada com o CSS (40% da altura)
             center_x = w / 2
-            center_y = h * 0.35 # <--- ALINHAMENTO COM A MÁSCARA
+            center_y = h * 0.40 
             
             left = center_x - (crop_w / 2)
             top = center_y - (crop_h / 2)
             right = center_x + (crop_w / 2)
             bottom = center_y + (crop_h / 2)
             
-            # Proteção para não cortar fora da imagem
-            if top < 0:
-                diff = abs(top)
-                top = 0
-                bottom += diff
+            # Proteção de bordas (Clamp)
+            if left < 0: left = 0
+            if top < 0: top = 0
+            if right > w: right = w
+            if bottom > h: bottom = h
             
             img_crop = img_original.crop((left, top, right, bottom))
             
