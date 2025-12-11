@@ -9,10 +9,10 @@ import cv2
 # --- Configuração da Página (OBRIGATÓRIO SER A PRIMEIRA LINHA) ---
 st.set_page_config(page_title="Reconhecimento Facial", layout="wide", initial_sidebar_state="collapsed")
 
-# --- CSS SUPREMO PARA MOBILE (CORRIGIDO V2) ---
+# --- CSS SUPREMO PARA MOBILE (CORRIGIDO V3 - QUEBRA DE ASPECT RATIO) ---
 st.markdown("""
 <style>
-    /* 1. CONFIGURAÇÕES GERAIS DA PÁGINA */
+    /* 1. RESET TOTAL DA PÁGINA */
     .block-container {
         padding: 0 !important;
         margin: 0 !important;
@@ -22,65 +22,61 @@ st.markdown("""
     header, footer, #MainMenu { display: none !important; }
     
     .stApp {
-        background-color: black; /* Fundo preto total */
+        background-color: black;
     }
 
-    /* 2. FORÇAR VÍDEO A OCUPAR A TELA (AQUI ESTÁ A CORREÇÃO PRINCIPAL) */
+    /* 2. HACK AGRESSIVO PARA A CÂMERA */
     
-    /* O Container do input da câmera */
+    /* O Container Principal */
     div[data-testid="stCameraInput"] {
         width: 100% !important;
-        margin: 0 !important;
         background-color: black;
-        position: relative !important;
     }
 
-    /* O elemento VIDEO direto - Força bruta na altura */
+    /* O Container INTERNO que segura o vídeo (O culpado pela trava) */
+    div[data-testid="stCameraInput"] > div {
+        aspect-ratio: unset !important; /* [CRÍTICO] Remove a trava de proporção original */
+        width: 100% !important;
+        height: 85vh !important; /* Altura forçada */
+        padding-bottom: 0 !important; /* Remove espaçamento extra calculado */
+    }
+
+    /* O Elemento de Vídeo em si */
     div[data-testid="stCameraInput"] video {
         width: 100% !important;
-        height: 80vh !important; /* Força 80% da altura da tela, ignorando proporção original */
-        min-height: 80vh !important;
-        object-fit: cover !important; /* Corta as laterais para preencher sem distorcer (zoom) */
-        border-radius: 0 !important;
-        z-index: 1;
+        height: 100% !important; /* Preenche o pai (que tem 85vh) */
+        object-fit: cover !important; /* Zoom para preencher sem distorcer */
     }
 
-    /* 3. MÁSCARA GUIA (ROSTO) - Ajustado para ficar sobre o vídeo */
+    /* 3. MÁSCARA GUIA (ROSTO) */
     div[data-testid="stCameraInput"]::after {
         content: ""; 
         position: absolute; 
-        top: 40%; /* Centralizado na parte superior visual */
+        top: 40%;
         left: 50%; 
         transform: translate(-50%, -50%);
-        
         width: 65vw; 
         height: 45vh; 
-        
         border: 4px dashed rgba(255, 255, 255, 0.6); 
         border-radius: 50%; 
-        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5); /* Escurece tudo em volta do rosto */
-        
+        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
         pointer-events: none; 
         z-index: 50;
     }
 
-    /* 4. BOTÃO DE CAPTURA - Fixo na parte inferior do vídeo */
+    /* 4. BOTÃO DE CAPTURA - POSICIONAMENTO ABSOLUTO */
     div[data-testid="stCameraInput"] button { 
         position: absolute !important; 
-        bottom: 5% !important; /* 5% da base do container */
+        bottom: 30px !important;
         left: 50% !important;
         transform: translateX(-50%) !important;
         z-index: 100 !important; 
-        
         width: 80px !important; 
         height: 80px !important;
         border-radius: 50% !important;
-        
         background-color: #ff4444 !important;
         border: 4px solid white !important;
         color: transparent !important;
-        
-        transition: transform 0.2s;
     }
     
     div[data-testid="stCameraInput"] button:active {
@@ -88,11 +84,9 @@ st.markdown("""
         background-color: #cc0000 !important;
     }
 
-    /* Ajuste para telas pequenas não quebrarem */
-    @media (max-height: 600px) {
-        div[data-testid="stCameraInput"] video {
-            height: 70vh !important;
-        }
+    /* Esconde textos pequenos de instrução que o Streamlit as vezes mostra */
+    div[data-testid="stCameraInput"] small {
+        display: none !important;
     }
     
 </style>
