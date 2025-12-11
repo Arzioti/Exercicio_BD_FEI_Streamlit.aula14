@@ -9,7 +9,7 @@ import cv2
 # --- Configuração da Página (OBRIGATÓRIO SER A PRIMEIRA LINHA) ---
 st.set_page_config(page_title="Reconhecimento Facial", layout="wide", initial_sidebar_state="collapsed")
 
-# --- CSS SUPREMO PARA MOBILE (CORRIGIDO V6 - SCROLL LIBERADO & IMG FULL) ---
+# --- CSS SUPREMO PARA MOBILE (CORRIGIDO V7 - ALTERNÂNCIA DE TELAS) ---
 st.markdown("""
 <style>
     /* 1. RESET TOTAL DA PÁGINA */
@@ -17,7 +17,6 @@ st.markdown("""
         padding: 0 !important;
         margin: 0 !important;
         max-width: 100% !important;
-        /* IMPORTANTE: Removemos o overflow hidden para permitir rolar até o resultado */
     }
     
     header, footer, #MainMenu { display: none !important; }
@@ -26,46 +25,28 @@ st.markdown("""
         background-color: black;
     }
 
-    /* 2. FORÇA BRUTA NO VIDEO E NA IMAGEM CAPTURADA */
+    /* 2. ESTILOS DO MODO CÂMERA (FIXO E GIGANTE) */
     
-    /* Container Principal: Fixo na tela */
+    /* Container da Câmera */
     div[data-testid="stCameraInput"] {
         position: fixed !important;
         top: 0 !important;
         left: 0 !important;
         width: 100vw !important;
-        height: 85vh !important;
-        z-index: 1 !important;
+        height: 100vh !important; /* Tela inteira */
+        z-index: 10 !important;
         background-color: black !important;
     }
 
-    /* Força TODOS os containers internos */
+    /* Elementos internos da câmera */
     div[data-testid="stCameraInput"] > div,
-    div[data-testid="stCameraInput"] > div > div {
-        height: 100% !important;
-        width: 100% !important;
-        aspect-ratio: unset !important;
-        padding-bottom: 0 !important;
-        margin-bottom: 0 !important;
-    }
-
-    /* O Elemento de Vídeo (Ao vivo) E a Imagem (Capturada) - AMBOS GIGANTES */
-    div[data-testid="stCameraInput"] video, 
-    div[data-testid="stCameraInput"] img {
-        position: absolute !important;
-        top: 0 !important;
-        left: 0 !important;
+    div[data-testid="stCameraInput"] video {
         width: 100% !important;
         height: 100% !important;
-        
-        min-height: 85vh !important; 
-        min-width: 100vw !important;
-        
-        object-fit: cover !important; 
-        z-index: 2 !important;
+        object-fit: cover !important;
     }
 
-    /* 3. MÁSCARA GUIA (ROSTO) */
+    /* Máscara Guia (Rosto) */
     div[data-testid="stCameraInput"]::after {
         content: ""; 
         position: absolute; 
@@ -78,16 +59,16 @@ st.markdown("""
         border-radius: 50%; 
         box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.5); 
         pointer-events: none; 
-        z-index: 50; 
+        z-index: 20; 
     }
 
-    /* 4. BOTÃO DE CAPTURA */
+    /* Botão de Captura */
     div[data-testid="stCameraInput"] button { 
         position: absolute !important; 
-        bottom: 5vh !important;
+        bottom: 8vh !important;
         left: 50% !important;
         transform: translateX(-50%) !important;
-        z-index: 100 !important; 
+        z-index: 30 !important; 
         width: 80px !important; 
         height: 80px !important;
         border-radius: 50% !important;
@@ -96,38 +77,36 @@ st.markdown("""
         color: transparent !important;
     }
     
-    div[data-testid="stCameraInput"] button:active {
-        transform: translateX(-50%) scale(0.9) !important;
-        background-color: #cc0000 !important;
+    /* 3. ESTILOS DO MODO RESULTADO (LIMPO) */
+    
+    /* Container de Resultados */
+    .resultados-wrapper {
+        background-color: #0e1117;
+        min-height: 100vh;
+        padding: 20px;
+        padding-top: 40px;
+    }
+    
+    /* Botão Voltar/Nova Foto (Estilo flutuante ou fixo se preferir) */
+    .btn-nova-foto {
+        width: 100%;
+        padding: 15px;
+        font-size: 18px;
+        font-weight: bold;
     }
 
-    /* 5. SPINNER/LOADING VISÍVEL */
-    /* Garante que o spinner apareça em cima da tela preta */
-    .stSpinner {
+    /* STATUS LOADING */
+    .stStatusWidget {
         position: fixed !important;
         top: 50% !important;
         left: 50% !important;
         transform: translate(-50%, -50%) !important;
         z-index: 9999 !important;
-        background: rgba(0,0,0,0.7);
-        padding: 20px;
-        border-radius: 15px;
+        width: 80vw !important;
     }
 
-    /* Esconde textos auxiliares */
-    div[data-testid="stCameraInput"] small { display: none !important; }
-
-    /* Área de Resultados - Empurra para baixo */
-    .resultados-container {
-        margin-top: 85vh !important; 
-        position: relative;
-        z-index: 200;
-        background-color: #0e1117;
-        padding: 20px;
-        min-height: 50vh;
-        border-top-left-radius: 20px;
-        border-top-right-radius: 20px;
-    }
+    /* Esconde textos pequenos */
+    small { display: none !important; }
     
 </style>
 """, unsafe_allow_html=True)
@@ -153,32 +132,36 @@ if client:
 else:
     st.stop()
 
-# --- Cache e Estados da Sessão ---
+# --- Gerenciamento de Estado ---
+
+if 'camera_key' not in st.session_state:
+    st.session_state.camera_key = 0
 if 'resultados' not in st.session_state:
     st.session_state['resultados'] = None
 if 'foto_atual' not in st.session_state:
     st.session_state['foto_atual'] = None
-if 'ultimo_buffer_foto' not in st.session_state:
-    st.session_state['ultimo_buffer_foto'] = None 
 
-# --- Funções Matemáticas e de Processamento ---
+def resetar_app():
+    """Limpa os resultados e reinicia a câmera"""
+    st.session_state['resultados'] = None
+    st.session_state['foto_atual'] = None
+    st.session_state.camera_key += 1
+    st.rerun()
+
+# --- Funções de Processamento ---
 
 def processar_imagem_aula(image, target_size=(200, 250)):
-    # Converte para Cinza e Redimensiona
     img_gray = image.convert('L')
     img_resized = img_gray.resize(target_size)
-    # Usa int16 para permitir subtração negativa no cálculo da diferença
     img_array = np.array(img_resized, dtype=np.int16)
     return img_array, img_resized
 
 def calcular_diferenca_aula(img_usuario_array, img_banco_array):
-    # Soma das Diferenças Absolutas (SAD)
     diferenca_abs = np.abs(img_banco_array - img_usuario_array)
     score_diferenca = np.sum(diferenca_abs)
     return score_diferenca
 
 def calcular_similaridade_percentual(diferenca_score):
-    # Calibração: 8 milhões como limite máximo aceitável para separar bem
     max_diferenca_aceitavel = 8000000.0 
     porcentagem = (1 - (diferenca_score / max_diferenca_aceitavel)) * 100
     return max(0.0, min(100.0, porcentagem))
@@ -190,22 +173,18 @@ def encontrar_matches(foto_usuario_pil):
     try:
         todos_arquivos = list(fs.find())
         if not todos_arquivos:
-            return [], img_usuario_processada # Retorna vazio se não houver imagens
+            return [], img_usuario_processada
     except:
         return [], img_usuario_processada
     
-    # Processa todas as imagens do banco
     for grid_out in todos_arquivos:
         try:
             bytes_img = grid_out.read()
             if not bytes_img: continue
-
             img_banco_pil = Image.open(io.BytesIO(bytes_img))
             array_banco, img_banco_processada = processar_imagem_aula(img_banco_pil)
-            
             diferenca = calcular_diferenca_aula(array_usuario, array_banco)
             porcentagem = calcular_similaridade_percentual(diferenca)
-            
             resultados.append({
                 'filename': grid_out.filename,
                 'diferenca': diferenca,
@@ -215,7 +194,6 @@ def encontrar_matches(foto_usuario_pil):
         except:
             continue
             
-    # Ordena: Maior porcentagem primeiro
     resultados_ordenados = sorted(resultados, key=lambda x: x['porcentagem'], reverse=True)
     return resultados_ordenados, img_usuario_processada
 
@@ -225,83 +203,104 @@ def salvar_no_banco(nome, imagem_pil):
         imagem_pil.save(buffer, format='JPEG', quality=95)
         fs.put(buffer.getvalue(), filename=f"{nome}.jpg")
         st.toast(f"Salvo: {nome}.jpg", icon="💾")
-        st.cache_resource.clear()
-        st.session_state['ultimo_buffer_foto'] = None # Força reprocessar na próxima
+        # Pequeno delay para usuário ver a mensagem antes de resetar
+        import time
+        time.sleep(1.5)
+        resetar_app()
     except Exception as e:
         st.error(f"Erro: {e}")
 
-# --- Interface Principal (Mobile First) ---
+# --- LÓGICA PRINCIPAL (ALTERNÂNCIA DE TELAS) ---
 
-# Container vazio apenas para segurar o lugar, já que o CSS posiciona tudo como fixed
-placeholder_cam = st.empty()
-
-with placeholder_cam:
-    foto = st.camera_input("Tire a foto", label_visibility="collapsed")
-
-# Lógica de Cache Inteligente: Só processa se a foto mudou
-if foto:
-    bytes_foto_atual = foto.getvalue()
+if st.session_state['foto_atual'] is None:
+    # === TELA 1: CÂMERA ===
     
-    if bytes_foto_atual != st.session_state['ultimo_buffer_foto']:
-        img_original = Image.open(foto)
+    # Renderiza a câmera usando uma key dinâmica para permitir reset
+    foto = st.camera_input("Tire a foto", label_visibility="collapsed", key=f"cam_{st.session_state.camera_key}")
+    
+    if foto:
+        # Assim que tira a foto:
         
-        # Crop Inteligente (Centralizado)
-        w, h = img_original.size
-        target_ratio = 200/250
-        current_ratio = w/h
+        # 1. CSS Injection Imediato para esconder a imagem congelada que ficaria por cima
+        st.markdown("""
+            <style>
+                div[data-testid="stCameraInput"] { display: none !important; }
+            </style>
+        """, unsafe_allow_html=True)
         
-        if current_ratio > target_ratio:
-            new_w = h * target_ratio
-            left = (w - new_w)/2
-            img_crop = img_original.crop((left, 0, left + new_w, h))
-        else:
-            new_h = w / target_ratio
-            top = (h - new_h)/2
-            img_crop = img_original.crop((0, top, w, top + new_h))
-        
-        with st.spinner("Analisando..."):
+        # 2. Mostra barra de carregamento bonita
+        with st.status("🔍 Processando imagem...", expanded=True) as status:
+            img_original = Image.open(foto)
+            
+            # Crop Inteligente
+            w, h = img_original.size
+            target_ratio = 200/250
+            current_ratio = w/h
+            if current_ratio > target_ratio:
+                new_w = h * target_ratio
+                left = (w - new_w)/2
+                img_crop = img_original.crop((left, 0, left + new_w, h))
+            else:
+                new_h = w / target_ratio
+                top = (h - new_h)/2
+                img_crop = img_original.crop((0, top, w, top + new_h))
+            
+            st.write("Comparando com banco de dados...")
             matches, img_proc = encontrar_matches(img_crop)
+            
+            # Salva no estado
             st.session_state['resultados'] = matches
             st.session_state['foto_atual'] = img_proc
-            st.session_state['ultimo_buffer_foto'] = bytes_foto_atual
+            
+            status.update(label="Concluído!", state="complete", expanded=False)
+            
+        # 3. Recarrega a página para entrar no "Modo Resultado"
+        st.rerun()
 
-# --- Exibição dos Resultados ---
-if st.session_state['foto_atual']:
-    # Classe CSS específica para empurrar o conteúdo para baixo da câmera fixa
-    st.markdown("<div class='resultados-container'>", unsafe_allow_html=True)
+else:
+    # === TELA 2: RESULTADOS (CÂMERA REMOVIDA) ===
     
+    # CSS para garantir que a imagem da câmera não volta assombrar e fundo correto
+    st.markdown("""
+        <style>
+            div[data-testid="stCameraInput"] { display: none !important; }
+            .stApp { background-color: #0e1117 !important; }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # Container principal dos resultados
+    st.markdown("<div class='resultados-wrapper'>", unsafe_allow_html=True)
+    
+    # Botão para voltar
+    if st.button("📸 Tirar Nova Foto", type="primary", use_container_width=True):
+        resetar_app()
+    
+    st.divider()
+
     tab1, tab2 = st.tabs(["📊 Comparação", "💾 Salvar"])
     
     with tab1:
         res = st.session_state['resultados']
         if res:
-            # Controles Rápidos
             c1, c2 = st.columns([1, 1])
-            with c1: 
-                qtde = st.selectbox("Quantidade:", [3, 6, 9, 12], index=0)
-            with c2: 
-                ordem = st.radio("Mostrar:", ["Mais Parecidas", "Menos Parecidas"], horizontal=True)
+            with c1: qtde = st.selectbox("Qtd:", [3, 6, 9], index=0)
+            with c2: ordem = st.radio("Ordem:", ["Maior %", "Menor %"], horizontal=True)
             
-            # Filtra a lista (instantâneo, sem reprocessar imagem)
-            if "Mais" in ordem:
+            if "Maior" in ordem:
                 lista_final = res[:qtde]
             else:
                 lista_final = res[-qtde:][::-1]
             
-            # Grid
             cols = st.columns(3)
             for i, item in enumerate(lista_final):
                 with cols[i % 3]:
                     st.image(item['imagem'], use_container_width=True)
                     pct = item['porcentagem']
-                    
-                    # Cores
                     cor = "green" if pct >= 60 else "red"
-                    
-                    st.markdown(f"<h3 style='text-align:center; color:{cor}; margin:0; font-size: 18px;'>{pct:.0f}%</h3>", unsafe_allow_html=True)
-                    st.caption(f"{item['filename']}")
+                    st.markdown(f"<h3 style='text-align:center; color:{cor}; margin:0;'>{pct:.0f}%</h3>", unsafe_allow_html=True)
+                    st.caption(f"{item['filename']}", unsafe_allow_html=True)
         else:
-            st.warning("Banco de dados vazio.")
+            st.info("Nenhuma imagem no banco para comparar.")
 
     with tab2:
         col_img, col_input = st.columns([1, 2])
@@ -309,11 +308,11 @@ if st.session_state['foto_atual']:
             st.image(st.session_state['foto_atual'], use_container_width=True, caption="Sua Foto")
         with col_input:
             with st.form("salvar_foto"):
-                nome_input = st.text_input("Nome da pessoa:")
+                nome_input = st.text_input("Nome:")
                 if st.form_submit_button("Salvar no Banco", use_container_width=True):
                     if nome_input:
                         salvar_no_banco(nome_input, st.session_state['foto_atual'])
                     else:
-                        st.warning("Escreva um nome.")
-
+                        st.warning("Digite um nome.")
+    
     st.markdown("</div>", unsafe_allow_html=True)
